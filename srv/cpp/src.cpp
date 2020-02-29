@@ -1537,8 +1537,8 @@ public:
 		if (file_exists(p_path + ".apsynp.parquet")) {
 			const auto apsynp_table = load_parquet_table(p_path + ".apsynp.parquet");
 			if (size_t(apsynp_table->num_rows()) != m_tokens.size()) {
-				fprintf(stderr, "neighborhood table: token size %lu != %lu\n",
-					apsynp_table->num_rows(), m_tokens.size());
+				fprintf(stderr, "neighborhood table: token size %ld != %ld\n",
+					long(apsynp_table->num_rows()), long(m_tokens.size()));
 				throw std::runtime_error("broken table");
 			}
 			m_embeddings.apsynp.resize(m_tokens.size(), apsynp_table->num_columns());
@@ -1556,8 +1556,8 @@ public:
 		if (file_exists(p_path + ".neighborhood.parquet")) {
 			const auto neighborhood_table = load_parquet_table(p_path + ".neighborhood.parquet");
 			if (size_t(neighborhood_table->num_rows()) != m_tokens.size()) {
-				fprintf(stderr, "neighborhood table: token size %lu != %lu\n",
-					neighborhood_table->num_rows(), m_tokens.size());
+				fprintf(stderr, "neighborhood table: token size %ld != %ld\n",
+					long(neighborhood_table->num_rows()), long(m_tokens.size()));
 				throw std::runtime_error("broken table");
 			}
 			m_embeddings.neighborhood.resize(m_tokens.size(), neighborhood_table->num_columns());
