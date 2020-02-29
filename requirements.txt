@@ -1,0 +1,11 @@
+spacy
+sklearn
+janus
+tornado
+cppimport
+pyarrow
+pykka
+pandas
+fastparquet
+pyyaml
+humanize

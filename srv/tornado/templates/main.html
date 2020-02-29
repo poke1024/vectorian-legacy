@@ -1,0 +1,43 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>The Vectorian</title>
+    <script src="static/elm.js"></script>
+    <script src="static/js/bulma-slider.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="static/css/bulma.min.css">
+    <link rel="stylesheet" type="text/css" href="static/css/bulma-checkradio.min.css">
+    <link rel="stylesheet" type="text/css" href="static/css/bulma-slider.min.css">
+    <link rel="stylesheet" type="text/css" href="static/css/bulma-switch.min.css">
+    <link rel="stylesheet" href="https://jenil.github.io/bulmaswatch/lumen/bulmaswatch.min.css">
+</head>
+<body>
+    <div id="elm-node"></div>
+    <script>
+        var socket = new WebSocket("ws://" + location.host + "/ws");
+
+        var app = null;
+
+        socket.onclose = function(event) {
+            app.ports.toClient.send("disconnected");
+        }
+
+        socket.onopen = function(event) {
+            app = Elm.Vectorian.init({
+                node: document.getElementById("elm-node")
+            });
+
+            app.ports.toClient.send("connected");
+
+            socket.onmessage = function(event) {
+                // console.log("received", event.data);
+                app.ports.toClient.send(event.data);
+            }
+
+            app.ports.toServer.subscribe(function(str) {
+                socket.send(str);
+            });
+        };
+    </script>
+</body>
+</html>

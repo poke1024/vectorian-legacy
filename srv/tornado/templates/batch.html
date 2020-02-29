@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="static/css/bulma.min.css">
+		<title>The Vectorian</title>
+	</head>
+	<body>
+		<section class="hero is-dark">
+			<div class="hero-body">
+				<div class="container">
+					<h1 class="title">
+
+						<nav class="level">
+						  <div class="level-item has-text-centered">
+							<div>
+							  <p class="heading">elapsed</p>
+							  <p class="title">{{ elapsed }}</p>
+							</div>
+						  </div>
+						  <div class="level-item has-text-centered">
+							<div>
+							  <p class="heading">Iterations</p>
+							  <p class="title">{{ rate }}</p>
+							</div>
+						  </div>
+						  <div class="level-item has-text-centered">
+							<div>
+							  <p class="heading">remaining</p>
+							  <p class="title">{{ remaining }}</p>
+							</div>
+						  </div>
+						  <div class="level-item has-text-centered">
+							<div>
+							  <p class="heading">N</p>
+							  <p class="title">{{ progress_value }} </p>
+							</div>
+						  </div>
+						  <div class="level-item has-text-centered">
+							<div>
+							  <p class="heading">Total</p>
+							  <p class="title">{{ progress_max }} </p>
+							</div>
+						  </div>
+						</nav>
+					</h1>
+					<div class="subtitle" style="padding-top:1em;">
+
+						<progress class="progress is-info" value="{{ progress_value }}" max="{{ progress_max }}">
+							{{ progress_text }}
+						</progress>
+
+					</div>
+				</div>
+			</div>
+		</section>
+
+	</body>
+</html>

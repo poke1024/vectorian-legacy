@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="static/css/bulma.min.css">
+		<title>The Vectorian</title>
+	</head>
+	<body>
+		<section class="hero is-dark">
+			<div class="hero-body">
+				<div class="container">
+					<h1 class="title">
+						<i>The Vectorian</i>
+					</h1>
+					<div class="subtitle" style="padding-top:1em;">
+						<form class="form" action="/login" method="post">
+							{% module xsrf_form_html() %}
+							<div class="container">
+								<div class="field has-addons has-addons-centered">
+									<p class="control">
+										<input class="input is-large" type="text" name="password" required minlength="1" size="80" placeholder="Password.">
+									</p>
+									<p class="control">
+										<input class="button is-large is-rounded is-primary" type="submit" value="Login">
+									</p>
+								</div>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+		</section>
+	</body>
+</html>

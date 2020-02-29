@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__
+/.idea
+/data
+/web/html/elm.js
+/web/elm-stuff
+/srv/cpp/*.so
+/srv/cpp/.rendered.*
+/srv/cpp/*.cppimporthash
