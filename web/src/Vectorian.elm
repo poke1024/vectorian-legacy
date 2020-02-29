@@ -23,7 +23,7 @@ import BulmaExtensions exposing (
   mismatchCutoffSlider, falloffSlider, optionalCheckbox, intSlider )
 
 
-import Json.Decode as Decode exposing (int, list, string, float, Decoder)
+import Json.Decode as Decode exposing (int, list, string, float, bool, Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
 import Json.Decode as Json
 
@@ -99,21 +99,42 @@ matchDecoder =
     |> required "regions" (list regionDecoder)
     |> optional "omitted" (list string) []
 
-type alias ServerMessage = { command: String, results : List Match, progress : Float }
+type alias ServerResultsMessage = {
+  command: String, results : List Match, progress : Float }
 
-serverConnectedMessageDecoder : Decoder ServerMessage
-serverConnectedMessageDecoder =
-  Decode.succeed ServerMessage
-    |> required "status" string
-    |> required "nicdm" bool
-    |> required "percentiles" bool
-
-serverResultsMessageDecoder : Decoder ServerMessage
+serverResultsMessageDecoder : Decoder ServerResultsMessage
 serverResultsMessageDecoder =
-  Decode.succeed ServerMessage
+  Decode.succeed ServerResultsMessage
     |> required "command" string
     |> required "results" (list matchDecoder)
     |> required "progress" float
+
+
+type alias Features = {
+  nicdm : Bool,
+  apsynp : Bool,
+  maximum : Bool,
+  quantiles : Bool,
+  idf : Bool}
+
+type alias ServerConnectedMessage = {
+  status: String, features: Features }
+
+featuresDecoder : Decoder Features
+featuresDecoder =
+  Decode.succeed Features
+    |> required "nicdm" bool
+    |> required "apsynp" bool
+    |> required "maximum" bool
+    |> required "quantiles" bool
+    |> required "idf" bool
+
+serverConnectedMessageDecoder : Decoder ServerConnectedMessage
+serverConnectedMessageDecoder =
+  Decode.succeed ServerConnectedMessage
+    |> required "status" string
+    |> required "features" featuresDecoder
+
 
 defaultQuerySettings : QuerySettings
 defaultQuerySettings = {
@@ -135,6 +156,7 @@ defaultQuerySettings = {
 
 type alias Model = {
   connected : Bool,
+  features : Features,
   query : String,
   querySettings : QuerySettings,
   search : SearchStatus,
@@ -144,6 +166,7 @@ init : (Model, Cmd Msg)
 init = ( {
   connected = True,  -- binding js ensures we're connected
   -- at first time of instantation of elm app.
+  features = {nicdm = True, apsynp = True, maximum = False, quantiles = False, idf = False},
   query = "",
   querySettings = defaultQuerySettings,
   search = NotSearching,
@@ -522,12 +545,12 @@ optimizeAlignmentUI settings =
     ]
   ]
 
-similarityMeasureRadioUI : QuerySettings -> (String,  String) -> Html Msg
-similarityMeasureRadioUI settings names =
+similarityMeasureRadioUI : QuerySettings -> Features -> (String,  String) -> Html Msg
+similarityMeasureRadioUI settings features names =
   let
     (name, displayName) = names
     currentMeasure = settings.similarityMeasure
-  in fields Left [] [
+  in fields Left [] ([
     radio
     (
       [ onCheck (\_ -> (UpdateQuerySettings (UpdateSimilarityMeasure (Just { currentMeasure | name = name })))) ]
@@ -535,20 +558,25 @@ similarityMeasureRadioUI settings names =
     )
     ( "id-similarity-measure-" ++ name)
     displayName
-    , optionalCheckbox (settings.similarityMeasure.name == name)
-    (
-      [
-        onCheck (\x -> (UpdateQuerySettings (UpdateSimilarityMeasure (Just { currentMeasure | quantiles = x }))))
-      ] ++ checked (settings.similarityMeasure.quantiles)
-    )
-    ("id-similarity-measure-quantiles-" ++ name)
-    "quantiles"
-  ]
+    ] ++ if features.quantiles then [
+      optionalCheckbox (settings.similarityMeasure.name == name)
+      (
+        [
+          onCheck (\x -> (UpdateQuerySettings (UpdateSimilarityMeasure (Just { currentMeasure | quantiles = x }))))
+        ] ++ checked (settings.similarityMeasure.quantiles)
+      )
+      ("id-similarity-measure-quantiles-" ++ name)
+      "quantiles"
+    ]
+    else [])
 
 
-similarityMeasureUI : QuerySettings -> Html Msg
-similarityMeasureUI settings =
-  let options = [("cosine", "Cosine"), ("nicdm", "NICDM"), ("apsynp", "APSynP"), ("maximum", "Maximum")]
+similarityMeasureUI : QuerySettings -> Features -> Html Msg
+similarityMeasureUI settings features =
+  let options = [("cosine", "Cosine")] ++ (if
+        features.nicdm then [("nicdm", "NICDM")] else []) ++ (if
+        features.apsynp then [("apsynp", "APSynP")] else []) ++ (if
+        features.maximum then [("maximum", "Maximum")] else [])
   in
   card []
   [
@@ -561,10 +589,47 @@ similarityMeasureUI settings =
     ]
     , cardContent []
     [
-      div [] (List.map (\name -> (similarityMeasureRadioUI settings name)) options)
+      div [] (List.map (\name -> (similarityMeasureRadioUI settings features name)) options)
     ]
   ]
 
+
+similarityDetailsUI : QuerySettings -> Features -> Html Msg
+similarityDetailsUI settings features =
+  card []
+  [
+    cardHeader []
+    [
+      cardTitle []
+      [
+        text "Similarity Postprocessing"
+      ]
+    ]
+    , cardContent []
+    [
+      span [ pulledLeft ]
+      [ text "Falloff" ]
+      , span [ pulledRight ]
+      [ text ((Round.round 2 settings.similarityFalloff)) ]
+      , falloffSlider
+      [
+        attribute "value" (String.fromFloat settings.similarityFalloff),
+        onSliderInput (\x -> (UpdateQuerySettings (SimilarityFalloff x)))
+      ]
+      "slider-similarity-falloff",
+
+      span [ pulledLeft ]
+      [ text "Threshold" ]
+      , span [ pulledRight ]
+      [ text ((Round.round 0 settings.similarityThreshold) ++ "%") ]
+      , fineGrainedSlider
+      [
+        attribute "value" (String.fromFloat settings.similarityThreshold),
+        onSliderInput (\x -> (UpdateQuerySettings (SimilarityThreshold x)))
+      ]
+      "slider-similarity-threshold"
+    ]
+  ]
 
 searchUI : Model -> Html Msg
 searchUI model
@@ -612,61 +677,39 @@ searchUI model
                   [
                     cardTitle []
                     [
-                      text "Part of Speech"
+                      text "Embedding"
                     ]
+                  ],
+                  cardContent ( if model.querySettings.enableElmo then [invisible] else [] )
+                  [
+                    span [ pulledLeft ]
+                    [ text "Fasttext" ]
+                    , span [ pulledRight ]
+                    [ text "WordNet" ]
+                    , slider
+                    [
+                      attribute "value" (String.fromFloat model.querySettings.mixEmbedding),
+                      onSliderInput (\x -> (UpdateQuerySettings (MixEmbedding x)))
+                    ]
+                    "slider-mix-embedding"
                   ]
-                  , cardContent []
+                ]
+                , similarityMeasureUI model.querySettings model.features
+                {- , card []
+                [
+                  cardContent []
                   [
                     checkbox
                     (
                       [
-                        onCheck (\x -> (UpdateQuerySettings (IgnoreDeterminers x)))
-                      ] ++ checked model.querySettings.ignoreDeterminers
+                        onCheck (\x -> (UpdateQuerySettings (EnableElmo x)))
+                      ] ++ checked model.querySettings.enableElmo
                     )
-                    "id-ignore-determiners"
-                    "Ignore Determiners"
+                    "id-enable-elmo"
+                    "Elmo"
                   ]
-                ]
-                , card []
-                [
-                  cardContent ( if model.querySettings.enableElmo then [invisible] else [] )
-                  [
-                    span [ pulledLeft ]
-                    [
-                      text "Universal POS Mismatch Penalty"
-                    ]
-                    , span [ pulledRight ]
-                    [ text ((Round.round 0 model.querySettings.posMismatch) ++ "%") ]
-                    , slider
-                    [
-                      attribute "value" (String.fromFloat model.querySettings.posMismatch),
-                      onSliderInput (\x -> (UpdateQuerySettings (PosMismatch x)))
-                    ]
-                    "slider-pos-mismatch"
-                  ]
-                ]
-                , card []
-                [
-                  cardContent []
-                  [
-                    span [ pulledLeft ]
-                    [
-                      text "POST STSS Weighting"
-                    ]
-                    , span [ pulledRight ]
-                    [
-                      text ((Round.round 0 model.querySettings.posWeighting) ++ "%")
-                    ]
-                    , slider
-                    [
-                      attribute "value" (String.fromFloat model.querySettings.posWeighting)
-                      , onSliderInput (\x -> (UpdateQuerySettings (PosWeighting x)))
-                    ]
-                    "slider-pos-weighting"
-                  ]
-                ]
-              ]
-              , tileChild Width4 []
+                ] -}
+              ], tileChild Width4 []
               [
                 -- optimizeAlignmentUI model.querySettings
                 card []
@@ -675,7 +718,18 @@ searchUI model
                   [
                     cardTitle []
                     [
-                      text "Alignment"
+                      text "Alignment",
+
+                      div [invisible] [
+                        checkbox
+                        (
+                          [
+                            onCheck (\x -> (UpdateQuerySettings (Bidirectional x)))
+                          ] ++ checked model.querySettings.bidirectional
+                        )
+                        "id-bidirectional"
+                        "Bidirectional"
+                      ]
                     ]
                   ]
                   , cardContent []
@@ -695,33 +749,10 @@ searchUI model
                            Nothing -> NoOp
                       )
                     ]
-                    "slider-mismatch-length-cutoff"
-                  ]
-                  , cardContent []
-                  [
-                    mismatchPenaltyCurve model.querySettings.mismatchLengthPenalty 15
-                  ]
-                ]
-                , card []
-                [
-                  cardContent []
-                  [
-                    span [ pulledLeft ]
-                    [ text "Similarity Threshold" ]
-                    , span [ pulledRight ]
-                    [ text ((Round.round 0 model.querySettings.similarityThreshold) ++ "%") ]
-                    , fineGrainedSlider
-                    [
-                      attribute "value" (String.fromFloat model.querySettings.similarityThreshold),
-                      onSliderInput (\x -> (UpdateQuerySettings (SimilarityThreshold x)))
-                    ]
-                    "slider-similarity-threshold"
-                  ]
-                ]
-                , card []
-                [
-                  cardContent []
-                  [
+                    "slider-mismatch-length-cutoff",
+
+                    mismatchPenaltyCurve model.querySettings.mismatchLengthPenalty 15,
+
                     div [ pulledLeft ]
                     [ text "Sub Match Weight" ]
                     , span [ pulledRight ]
@@ -733,7 +764,78 @@ searchUI model
                     ]
                     "slider-submatch-weight"
 
-                    , div [ pulledLeft ]
+                  ]
+                ]
+              ], tileChild Width4 []
+              [
+                card []
+                [
+                  cardHeader []
+                  [
+                    cardTitle []
+                    [
+                      text "Part of Speech",
+
+                      span [pulledRight] [
+                        checkbox
+                        (
+                          [
+                            onCheck (\x -> (UpdateQuerySettings (IgnoreDeterminers x)))
+                          ] ++ checked model.querySettings.ignoreDeterminers
+                        )
+                        "id-ignore-determiners"
+                        "exclude DET"
+                      ]
+
+                    ]
+                  ]
+                  , cardContent []
+                  [
+                    div ( if model.querySettings.enableElmo then [invisible] else [] ) [
+                      span [ pulledLeft ]
+                      [
+                        text "Universal POS Mismatch Penalty"
+                      ]
+                      , span [ pulledRight ]
+                      [ text ((Round.round 0 model.querySettings.posMismatch) ++ "%") ]
+                      , slider
+                      [
+                        attribute "value" (String.fromFloat model.querySettings.posMismatch),
+                        onSliderInput (\x -> (UpdateQuerySettings (PosMismatch x)))
+                      ]
+                      "slider-pos-mismatch" ],
+                    div [] [
+                      span [ pulledLeft ]
+                      [
+                        text "POST STSS Weighting"
+                      ]
+                      , span [ pulledRight ]
+                      [
+                        text ((Round.round 0 model.querySettings.posWeighting) ++ "%")
+                      ]
+                      , slider
+                      [
+                        attribute "value" (String.fromFloat model.querySettings.posWeighting)
+                        , onSliderInput (\x -> (UpdateQuerySettings (PosWeighting x)))
+                      ]
+                      "slider-pos-weighting"
+                    ]
+                  ]
+                ],
+
+                similarityDetailsUI model.querySettings model.features,
+
+                if model.features.idf then card []
+                [
+                  cardHeader []
+                  [
+                    cardTitle []
+                    [
+                      text "IDF"
+                    ]
+                  ], cardContent []
+                  [
+                    div [ pulledLeft ]
                     [ text "IDF Weight" ]
                     , span [ pulledRight ]
                     [ text ((Round.round 0 model.querySettings.idfWeight)) ]
@@ -744,83 +846,8 @@ searchUI model
                     ]
                     "slider-idf-weight"
                   ]
-                ]
-                , card []
-                [
-                  cardContent []
-                  [
-                    checkbox
-                    (
-                      [
-                        onCheck (\x -> (UpdateQuerySettings (Bidirectional x)))
-                      ] ++ checked model.querySettings.bidirectional
-                    )
-                    "id-bidirectional"
-                    "Bidirectional"
-                  ]
-                ]
+                ] else div [] []
               ]
-              , tileChild Width4 []
-              [
-                card []
-                [
-                  cardHeader []
-                  [
-                    cardTitle []
-                    [
-                      text "Embedding"
-                    ]
-                  ]
-                ]
-                , card []
-                [
-                  cardContent ( if model.querySettings.enableElmo then [invisible] else [] )
-                  [
-                    span [ pulledLeft ]
-                    [ text "Fasttext" ]
-                    , span [ pulledRight ]
-                    [ text "WordNet" ]
-                    , slider
-                    [
-                      attribute "value" (String.fromFloat model.querySettings.mixEmbedding),
-                      onSliderInput (\x -> (UpdateQuerySettings (MixEmbedding x)))
-                    ]
-                    "slider-mix-embedding"
-                  ]
-                ]
-                , similarityMeasureUI model.querySettings
-                {- , card []
-                [
-                  cardContent []
-                  [
-                    checkbox
-                    (
-                      [
-                        onCheck (\x -> (UpdateQuerySettings (EnableElmo x)))
-                      ] ++ checked model.querySettings.enableElmo
-                    )
-                    "id-enable-elmo"
-                    "Elmo"
-                  ]
-                ] -}
-                , card []
-                [
-                  cardContent []
-                  [
-                    span [ pulledLeft ]
-                    [ text "Similarity Falloff" ]
-                    , span [ pulledRight ]
-                    [ text ((Round.round 2 model.querySettings.similarityFalloff)) ]
-                    , falloffSlider
-                    [
-                      attribute "value" (String.fromFloat model.querySettings.similarityFalloff),
-                      onSliderInput (\x -> (UpdateQuerySettings (SimilarityFalloff x)))
-                    ]
-                    "slider-similarity-falloff"
-                  ]
-                ]
-              ]
-
             ]
           ]
 

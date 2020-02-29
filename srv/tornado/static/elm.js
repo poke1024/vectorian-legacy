@@ -5158,7 +5158,14 @@ var $author$project$Vectorian$defaultQuerySettings = {
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $author$project$Vectorian$init = _Utils_Tuple2(
-	{connected: true, query: '', querySettings: $author$project$Vectorian$defaultQuerySettings, results: _List_Nil, search: $author$project$Vectorian$NotSearching},
+	{
+		connected: true,
+		features: {apsynp: true, idf: false, maximum: false, nicdm: true, quantiles: false},
+		query: '',
+		querySettings: $author$project$Vectorian$defaultQuerySettings,
+		results: _List_Nil,
+		search: $author$project$Vectorian$NotSearching
+	},
 	$elm$core$Platform$Cmd$none);
 var $author$project$Msg$ReceiveDataFromServer = function (a) {
 	return {$: 'ReceiveDataFromServer', a: a};
@@ -5203,7 +5210,7 @@ var $author$project$Vectorian$searching = function (p) {
 	return (p > 0) ? $author$project$Vectorian$Searching(
 		$elm$core$Maybe$Just(p)) : $author$project$Vectorian$Searching($elm$core$Maybe$Nothing);
 };
-var $author$project$Vectorian$ServerMessage = F3(
+var $author$project$Vectorian$ServerResultsMessage = F3(
 	function (command, results, progress) {
 		return {command: command, progress: progress, results: results};
 	});
@@ -5376,7 +5383,7 @@ var $author$project$Vectorian$matchDecoder = A4(
 						'debug',
 						$author$project$Vectorian$matchDebugInfoDecoder,
 						$elm$json$Json$Decode$succeed($author$project$Vectorian$Match)))))));
-var $author$project$Vectorian$serverMessageDecoder = A3(
+var $author$project$Vectorian$serverResultsMessageDecoder = A3(
 	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
 	'progress',
 	$elm$json$Json$Decode$float,
@@ -5388,7 +5395,7 @@ var $author$project$Vectorian$serverMessageDecoder = A3(
 			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
 			'command',
 			$elm$json$Json$Decode$string,
-			$elm$json$Json$Decode$succeed($author$project$Vectorian$ServerMessage))));
+			$elm$json$Json$Decode$succeed($author$project$Vectorian$ServerResultsMessage))));
 var $elm$core$List$sortBy = _List_sortBy;
 var $author$project$Vectorian$sortResults = function (results) {
 	return $elm$core$List$reverse(
@@ -5666,7 +5673,7 @@ var $author$project$Vectorian$update = F2(
 					default:
 						var message = msg.a;
 						var r = model.results;
-						var decoded = A2($elm$json$Json$Decode$decodeString, $author$project$Vectorian$serverMessageDecoder, message);
+						var decoded = A2($elm$json$Json$Decode$decodeString, $author$project$Vectorian$serverResultsMessageDecoder, message);
 						if (decoded.$ === 'Ok') {
 							var serverMessage = decoded.a;
 							return (serverMessage.command === 'add-results') ? _Utils_Tuple2(
@@ -5791,12 +5798,6 @@ var $author$project$Msg$QueryKeyDown = function (a) {
 	return {$: 'QueryKeyDown', a: a};
 };
 var $surprisetalk$elm_bulma$Bulma$Modifiers$Right = {$: 'Right'};
-var $author$project$Msg$SimilarityFalloff = function (a) {
-	return {$: 'SimilarityFalloff', a: a};
-};
-var $author$project$Msg$SimilarityThreshold = function (a) {
-	return {$: 'SimilarityThreshold', a: a};
-};
 var $surprisetalk$elm_bulma$Bulma$Modifiers$Small = {$: 'Small'};
 var $author$project$Msg$SubmatchWeight = function (a) {
 	return {$: 'SubmatchWeight', a: a};
@@ -6262,23 +6263,6 @@ var $surprisetalk$elm_bulma$Bulma$Elements$easyProgress = F3(
 					attrs)),
 			_List_Nil);
 	});
-var $author$project$BulmaExtensions$falloffSlider = F2(
-	function (attr, id) {
-		return A2(
-			$elm$html$Html$input,
-			_Utils_ap(
-				_List_fromArray(
-					[
-						A2($elm$html$Html$Attributes$attribute, 'id', id),
-						$elm$html$Html$Attributes$class('slider is-fullwidth'),
-						A2($elm$html$Html$Attributes$attribute, 'min', '0.25'),
-						A2($elm$html$Html$Attributes$attribute, 'max', '5'),
-						A2($elm$html$Html$Attributes$attribute, 'step', '0.25'),
-						$elm$html$Html$Attributes$type_('range')
-					]),
-				attr),
-			_List_Nil);
-	});
 var $surprisetalk$elm_bulma$Bulma$Classes$isGrouped = $elm$html$Html$Attributes$class('is-grouped');
 var $surprisetalk$elm_bulma$Bulma$Classes$isGroupedCentered = $elm$html$Html$Attributes$class('is-grouped-centered');
 var $surprisetalk$elm_bulma$Bulma$Classes$isGroupedRight = $elm$html$Html$Attributes$class('is-grouped-right');
@@ -6302,23 +6286,6 @@ var $surprisetalk$elm_bulma$Bulma$Form$fields = function (alignment) {
 			}()
 			]));
 };
-var $author$project$BulmaExtensions$fineGrainedSlider = F2(
-	function (attr, id) {
-		return A2(
-			$elm$html$Html$input,
-			_Utils_ap(
-				_List_fromArray(
-					[
-						A2($elm$html$Html$Attributes$attribute, 'id', id),
-						$elm$html$Html$Attributes$class('slider is-fullwidth'),
-						A2($elm$html$Html$Attributes$attribute, 'min', '0'),
-						A2($elm$html$Html$Attributes$attribute, 'max', '100'),
-						A2($elm$html$Html$Attributes$attribute, 'step', '1'),
-						$elm$html$Html$Attributes$type_('range')
-					]),
-				attr),
-			_List_Nil);
-	});
 var $elm$core$String$fromFloat = _String_fromNumber;
 var $surprisetalk$elm_bulma$Bulma$Classes$hero = $elm$html$Html$Attributes$class('hero');
 var $surprisetalk$elm_bulma$Bulma$Classes$isBold = $elm$html$Html$Attributes$class('is-bold');
@@ -11168,6 +11135,138 @@ var $surprisetalk$elm_bulma$Bulma$Layout$section = function (spacing) {
 			}()
 			]));
 };
+var $author$project$Msg$SimilarityFalloff = function (a) {
+	return {$: 'SimilarityFalloff', a: a};
+};
+var $author$project$Msg$SimilarityThreshold = function (a) {
+	return {$: 'SimilarityThreshold', a: a};
+};
+var $author$project$BulmaExtensions$falloffSlider = F2(
+	function (attr, id) {
+		return A2(
+			$elm$html$Html$input,
+			_Utils_ap(
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$attribute, 'id', id),
+						$elm$html$Html$Attributes$class('slider is-fullwidth'),
+						A2($elm$html$Html$Attributes$attribute, 'min', '0.25'),
+						A2($elm$html$Html$Attributes$attribute, 'max', '5'),
+						A2($elm$html$Html$Attributes$attribute, 'step', '0.25'),
+						$elm$html$Html$Attributes$type_('range')
+					]),
+				attr),
+			_List_Nil);
+	});
+var $author$project$BulmaExtensions$fineGrainedSlider = F2(
+	function (attr, id) {
+		return A2(
+			$elm$html$Html$input,
+			_Utils_ap(
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$attribute, 'id', id),
+						$elm$html$Html$Attributes$class('slider is-fullwidth'),
+						A2($elm$html$Html$Attributes$attribute, 'min', '0'),
+						A2($elm$html$Html$Attributes$attribute, 'max', '100'),
+						A2($elm$html$Html$Attributes$attribute, 'step', '1'),
+						$elm$html$Html$Attributes$type_('range')
+					]),
+				attr),
+			_List_Nil);
+	});
+var $author$project$Vectorian$similarityDetailsUI = F2(
+	function (settings, features) {
+		return A2(
+			$surprisetalk$elm_bulma$Bulma$Components$card,
+			_List_Nil,
+			_List_fromArray(
+				[
+					A2(
+					$surprisetalk$elm_bulma$Bulma$Components$cardHeader,
+					_List_Nil,
+					_List_fromArray(
+						[
+							A2(
+							$surprisetalk$elm_bulma$Bulma$Components$cardTitle,
+							_List_Nil,
+							_List_fromArray(
+								[
+									$elm$html$Html$text('Similarity Postprocessing')
+								]))
+						])),
+					A2(
+					$surprisetalk$elm_bulma$Bulma$Components$cardContent,
+					_List_Nil,
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text('Falloff')
+								])),
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(
+									A2($myrho$elm_round$Round$round, 2, settings.similarityFalloff))
+								])),
+							A2(
+							$author$project$BulmaExtensions$falloffSlider,
+							_List_fromArray(
+								[
+									A2(
+									$elm$html$Html$Attributes$attribute,
+									'value',
+									$elm$core$String$fromFloat(settings.similarityFalloff)),
+									$author$project$Vectorian$onSliderInput(
+									function (x) {
+										return $author$project$Msg$UpdateQuerySettings(
+											$author$project$Msg$SimilarityFalloff(x));
+									})
+								]),
+							'slider-similarity-falloff'),
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text('Threshold')
+								])),
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(
+									A2($myrho$elm_round$Round$round, 0, settings.similarityThreshold) + '%')
+								])),
+							A2(
+							$author$project$BulmaExtensions$fineGrainedSlider,
+							_List_fromArray(
+								[
+									A2(
+									$elm$html$Html$Attributes$attribute,
+									'value',
+									$elm$core$String$fromFloat(settings.similarityThreshold)),
+									$author$project$Vectorian$onSliderInput(
+									function (x) {
+										return $author$project$Msg$UpdateQuerySettings(
+											$author$project$Msg$SimilarityThreshold(x));
+									})
+								]),
+							'slider-similarity-threshold')
+						]))
+				]));
+	});
 var $author$project$Msg$UpdateSimilarityMeasure = function (a) {
 	return {$: 'UpdateSimilarityMeasure', a: a};
 };
@@ -11235,8 +11334,8 @@ var $author$project$BulmaExtensions$radio = F3(
 						]))
 				]));
 	});
-var $author$project$Vectorian$similarityMeasureRadioUI = F2(
-	function (settings, names) {
+var $author$project$Vectorian$similarityMeasureRadioUI = F3(
+	function (settings, features, names) {
 		var currentMeasure = settings.similarityMeasure;
 		var _v0 = names;
 		var name = _v0.a;
@@ -11245,91 +11344,108 @@ var $author$project$Vectorian$similarityMeasureRadioUI = F2(
 			$surprisetalk$elm_bulma$Bulma$Form$fields,
 			$surprisetalk$elm_bulma$Bulma$Modifiers$Left,
 			_List_Nil,
+			_Utils_ap(
+				_List_fromArray(
+					[
+						A3(
+						$author$project$BulmaExtensions$radio,
+						_Utils_ap(
+							_List_fromArray(
+								[
+									$elm$html$Html$Events$onCheck(
+									function (_v1) {
+										return $author$project$Msg$UpdateQuerySettings(
+											$author$project$Msg$UpdateSimilarityMeasure(
+												$elm$core$Maybe$Just(
+													_Utils_update(
+														currentMeasure,
+														{name: name}))));
+									})
+								]),
+							$author$project$Vectorian$checked(
+								_Utils_eq(settings.similarityMeasure.name, name))),
+						'id-similarity-measure-' + name,
+						displayName)
+					]),
+				features.quantiles ? _List_fromArray(
+					[
+						A4(
+						$author$project$BulmaExtensions$optionalCheckbox,
+						_Utils_eq(settings.similarityMeasure.name, name),
+						_Utils_ap(
+							_List_fromArray(
+								[
+									$elm$html$Html$Events$onCheck(
+									function (x) {
+										return $author$project$Msg$UpdateQuerySettings(
+											$author$project$Msg$UpdateSimilarityMeasure(
+												$elm$core$Maybe$Just(
+													_Utils_update(
+														currentMeasure,
+														{quantiles: x}))));
+									})
+								]),
+							$author$project$Vectorian$checked(settings.similarityMeasure.quantiles)),
+						'id-similarity-measure-quantiles-' + name,
+						'quantiles')
+					]) : _List_Nil));
+	});
+var $author$project$Vectorian$similarityMeasureUI = F2(
+	function (settings, features) {
+		var options = _Utils_ap(
 			_List_fromArray(
 				[
-					A3(
-					$author$project$BulmaExtensions$radio,
-					_Utils_ap(
-						_List_fromArray(
-							[
-								$elm$html$Html$Events$onCheck(
-								function (_v1) {
-									return $author$project$Msg$UpdateQuerySettings(
-										$author$project$Msg$UpdateSimilarityMeasure(
-											$elm$core$Maybe$Just(
-												_Utils_update(
-													currentMeasure,
-													{name: name}))));
-								})
-							]),
-						$author$project$Vectorian$checked(
-							_Utils_eq(settings.similarityMeasure.name, name))),
-					'id-similarity-measure-' + name,
-					displayName),
-					A4(
-					$author$project$BulmaExtensions$optionalCheckbox,
-					_Utils_eq(settings.similarityMeasure.name, name),
-					_Utils_ap(
-						_List_fromArray(
-							[
-								$elm$html$Html$Events$onCheck(
-								function (x) {
-									return $author$project$Msg$UpdateQuerySettings(
-										$author$project$Msg$UpdateSimilarityMeasure(
-											$elm$core$Maybe$Just(
-												_Utils_update(
-													currentMeasure,
-													{quantiles: x}))));
-								})
-							]),
-						$author$project$Vectorian$checked(settings.similarityMeasure.quantiles)),
-					'id-similarity-measure-quantiles-' + name,
-					'quantiles')
+					_Utils_Tuple2('cosine', 'Cosine')
+				]),
+			_Utils_ap(
+				features.nicdm ? _List_fromArray(
+					[
+						_Utils_Tuple2('nicdm', 'NICDM')
+					]) : _List_Nil,
+				_Utils_ap(
+					features.apsynp ? _List_fromArray(
+						[
+							_Utils_Tuple2('apsynp', 'APSynP')
+						]) : _List_Nil,
+					features.maximum ? _List_fromArray(
+						[
+							_Utils_Tuple2('maximum', 'Maximum')
+						]) : _List_Nil)));
+		return A2(
+			$surprisetalk$elm_bulma$Bulma$Components$card,
+			_List_Nil,
+			_List_fromArray(
+				[
+					A2(
+					$surprisetalk$elm_bulma$Bulma$Components$cardHeader,
+					_List_Nil,
+					_List_fromArray(
+						[
+							A2(
+							$surprisetalk$elm_bulma$Bulma$Components$cardTitle,
+							_List_Nil,
+							_List_fromArray(
+								[
+									$elm$html$Html$text('Similarity Measure')
+								]))
+						])),
+					A2(
+					$surprisetalk$elm_bulma$Bulma$Components$cardContent,
+					_List_Nil,
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$div,
+							_List_Nil,
+							A2(
+								$elm$core$List$map,
+								function (name) {
+									return A3($author$project$Vectorian$similarityMeasureRadioUI, settings, features, name);
+								},
+								options))
+						]))
 				]));
 	});
-var $author$project$Vectorian$similarityMeasureUI = function (settings) {
-	var options = _List_fromArray(
-		[
-			_Utils_Tuple2('cosine', 'Cosine'),
-			_Utils_Tuple2('nicdm', 'NICDM'),
-			_Utils_Tuple2('apsynp', 'APSynP'),
-			_Utils_Tuple2('maximum', 'Maximum')
-		]);
-	return A2(
-		$surprisetalk$elm_bulma$Bulma$Components$card,
-		_List_Nil,
-		_List_fromArray(
-			[
-				A2(
-				$surprisetalk$elm_bulma$Bulma$Components$cardHeader,
-				_List_Nil,
-				_List_fromArray(
-					[
-						A2(
-						$surprisetalk$elm_bulma$Bulma$Components$cardTitle,
-						_List_Nil,
-						_List_fromArray(
-							[
-								$elm$html$Html$text('Similarity Measure')
-							]))
-					])),
-				A2(
-				$surprisetalk$elm_bulma$Bulma$Components$cardContent,
-				_List_Nil,
-				_List_fromArray(
-					[
-						A2(
-						$elm$html$Html$div,
-						_List_Nil,
-						A2(
-							$elm$core$List$map,
-							function (name) {
-								return A2($author$project$Vectorian$similarityMeasureRadioUI, settings, name);
-							},
-							options))
-					]))
-			]));
-};
 var $author$project$BulmaExtensions$slider = F2(
 	function (attr, id) {
 		return A2(
@@ -11736,35 +11852,9 @@ var $author$project$Vectorian$searchUI = function (model) {
 																		_List_Nil,
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text('Part of Speech')
+																				$elm$html$Html$text('Embedding')
 																			]))
 																	])),
-																A2(
-																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
-																_List_Nil,
-																_List_fromArray(
-																	[
-																		A3(
-																		$author$project$BulmaExtensions$checkbox,
-																		_Utils_ap(
-																			_List_fromArray(
-																				[
-																					$elm$html$Html$Events$onCheck(
-																					function (x) {
-																						return $author$project$Msg$UpdateQuerySettings(
-																							$author$project$Msg$IgnoreDeterminers(x));
-																					})
-																				]),
-																			$author$project$Vectorian$checked(model.querySettings.ignoreDeterminers)),
-																		'id-ignore-determiners',
-																		'Ignore Determiners')
-																	]))
-															])),
-														A2(
-														$surprisetalk$elm_bulma$Bulma$Components$card,
-														_List_Nil,
-														_List_fromArray(
-															[
 																A2(
 																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
 																model.querySettings.enableElmo ? _List_fromArray(
@@ -11777,7 +11867,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text('Universal POS Mismatch Penalty')
+																				$elm$html$Html$text('Fasttext')
 																			])),
 																		A2(
 																		$elm$html$Html$span,
@@ -11785,8 +11875,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text(
-																				A2($myrho$elm_round$Round$round, 0, model.querySettings.posMismatch) + '%')
+																				$elm$html$Html$text('WordNet')
 																			])),
 																		A2(
 																		$author$project$BulmaExtensions$slider,
@@ -11795,60 +11884,17 @@ var $author$project$Vectorian$searchUI = function (model) {
 																				A2(
 																				$elm$html$Html$Attributes$attribute,
 																				'value',
-																				$elm$core$String$fromFloat(model.querySettings.posMismatch)),
+																				$elm$core$String$fromFloat(model.querySettings.mixEmbedding)),
 																				$author$project$Vectorian$onSliderInput(
 																				function (x) {
 																					return $author$project$Msg$UpdateQuerySettings(
-																						$author$project$Msg$PosMismatch(x));
+																						$author$project$Msg$MixEmbedding(x));
 																				})
 																			]),
-																		'slider-pos-mismatch')
+																		'slider-mix-embedding')
 																	]))
 															])),
-														A2(
-														$surprisetalk$elm_bulma$Bulma$Components$card,
-														_List_Nil,
-														_List_fromArray(
-															[
-																A2(
-																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
-																_List_Nil,
-																_List_fromArray(
-																	[
-																		A2(
-																		$elm$html$Html$span,
-																		_List_fromArray(
-																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
-																		_List_fromArray(
-																			[
-																				$elm$html$Html$text('POST STSS Weighting')
-																			])),
-																		A2(
-																		$elm$html$Html$span,
-																		_List_fromArray(
-																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
-																		_List_fromArray(
-																			[
-																				$elm$html$Html$text(
-																				A2($myrho$elm_round$Round$round, 0, model.querySettings.posWeighting) + '%')
-																			])),
-																		A2(
-																		$author$project$BulmaExtensions$slider,
-																		_List_fromArray(
-																			[
-																				A2(
-																				$elm$html$Html$Attributes$attribute,
-																				'value',
-																				$elm$core$String$fromFloat(model.querySettings.posWeighting)),
-																				$author$project$Vectorian$onSliderInput(
-																				function (x) {
-																					return $author$project$Msg$UpdateQuerySettings(
-																						$author$project$Msg$PosWeighting(x));
-																				})
-																			]),
-																		'slider-pos-weighting')
-																	]))
-															]))
+														A2($author$project$Vectorian$similarityMeasureUI, model.querySettings, model.features)
 													])),
 												A3(
 												$surprisetalk$elm_bulma$Bulma$Layout$tileChild,
@@ -11871,7 +11917,28 @@ var $author$project$Vectorian$searchUI = function (model) {
 																		_List_Nil,
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text('Alignment')
+																				$elm$html$Html$text('Alignment'),
+																				A2(
+																				$elm$html$Html$div,
+																				_List_fromArray(
+																					[$surprisetalk$elm_bulma$Bulma$Modifiers$invisible]),
+																				_List_fromArray(
+																					[
+																						A3(
+																						$author$project$BulmaExtensions$checkbox,
+																						_Utils_ap(
+																							_List_fromArray(
+																								[
+																									$elm$html$Html$Events$onCheck(
+																									function (x) {
+																										return $author$project$Msg$UpdateQuerySettings(
+																											$author$project$Msg$Bidirectional(x));
+																									})
+																								]),
+																							$author$project$Vectorian$checked(model.querySettings.bidirectional)),
+																						'id-bidirectional',
+																						'Bidirectional')
+																					]))
 																			]))
 																	])),
 																A2(
@@ -11917,70 +11984,8 @@ var $author$project$Vectorian$searchUI = function (model) {
 																					}
 																				})
 																			]),
-																		'slider-mismatch-length-cutoff')
-																	])),
-																A2(
-																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
-																_List_Nil,
-																_List_fromArray(
-																	[
-																		A2($author$project$MismatchPenalty$mismatchPenaltyCurve, model.querySettings.mismatchLengthPenalty, 15)
-																	]))
-															])),
-														A2(
-														$surprisetalk$elm_bulma$Bulma$Components$card,
-														_List_Nil,
-														_List_fromArray(
-															[
-																A2(
-																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
-																_List_Nil,
-																_List_fromArray(
-																	[
-																		A2(
-																		$elm$html$Html$span,
-																		_List_fromArray(
-																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
-																		_List_fromArray(
-																			[
-																				$elm$html$Html$text('Similarity Threshold')
-																			])),
-																		A2(
-																		$elm$html$Html$span,
-																		_List_fromArray(
-																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
-																		_List_fromArray(
-																			[
-																				$elm$html$Html$text(
-																				A2($myrho$elm_round$Round$round, 0, model.querySettings.similarityThreshold) + '%')
-																			])),
-																		A2(
-																		$author$project$BulmaExtensions$fineGrainedSlider,
-																		_List_fromArray(
-																			[
-																				A2(
-																				$elm$html$Html$Attributes$attribute,
-																				'value',
-																				$elm$core$String$fromFloat(model.querySettings.similarityThreshold)),
-																				$author$project$Vectorian$onSliderInput(
-																				function (x) {
-																					return $author$project$Msg$UpdateQuerySettings(
-																						$author$project$Msg$SimilarityThreshold(x));
-																				})
-																			]),
-																		'slider-similarity-threshold')
-																	]))
-															])),
-														A2(
-														$surprisetalk$elm_bulma$Bulma$Components$card,
-														_List_Nil,
-														_List_fromArray(
-															[
-																A2(
-																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
-																_List_Nil,
-																_List_fromArray(
-																	[
+																		'slider-mismatch-length-cutoff'),
+																		A2($author$project$MismatchPenalty$mismatchPenaltyCurve, model.querySettings.mismatchLengthPenalty, 15),
 																		A2(
 																		$elm$html$Html$div,
 																		_List_fromArray(
@@ -12013,7 +12018,163 @@ var $author$project$Vectorian$searchUI = function (model) {
 																						$author$project$Msg$SubmatchWeight(x));
 																				})
 																			]),
-																		'slider-submatch-weight'),
+																		'slider-submatch-weight')
+																	]))
+															]))
+													])),
+												A3(
+												$surprisetalk$elm_bulma$Bulma$Layout$tileChild,
+												$surprisetalk$elm_bulma$Bulma$Modifiers$Width4,
+												_List_Nil,
+												_List_fromArray(
+													[
+														A2(
+														$surprisetalk$elm_bulma$Bulma$Components$card,
+														_List_Nil,
+														_List_fromArray(
+															[
+																A2(
+																$surprisetalk$elm_bulma$Bulma$Components$cardHeader,
+																_List_Nil,
+																_List_fromArray(
+																	[
+																		A2(
+																		$surprisetalk$elm_bulma$Bulma$Components$cardTitle,
+																		_List_Nil,
+																		_List_fromArray(
+																			[
+																				$elm$html$Html$text('Part of Speech'),
+																				A2(
+																				$elm$html$Html$span,
+																				_List_fromArray(
+																					[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
+																				_List_fromArray(
+																					[
+																						A3(
+																						$author$project$BulmaExtensions$checkbox,
+																						_Utils_ap(
+																							_List_fromArray(
+																								[
+																									$elm$html$Html$Events$onCheck(
+																									function (x) {
+																										return $author$project$Msg$UpdateQuerySettings(
+																											$author$project$Msg$IgnoreDeterminers(x));
+																									})
+																								]),
+																							$author$project$Vectorian$checked(model.querySettings.ignoreDeterminers)),
+																						'id-ignore-determiners',
+																						'exclude DET')
+																					]))
+																			]))
+																	])),
+																A2(
+																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
+																_List_Nil,
+																_List_fromArray(
+																	[
+																		A2(
+																		$elm$html$Html$div,
+																		model.querySettings.enableElmo ? _List_fromArray(
+																			[$surprisetalk$elm_bulma$Bulma$Modifiers$invisible]) : _List_Nil,
+																		_List_fromArray(
+																			[
+																				A2(
+																				$elm$html$Html$span,
+																				_List_fromArray(
+																					[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
+																				_List_fromArray(
+																					[
+																						$elm$html$Html$text('Universal POS Mismatch Penalty')
+																					])),
+																				A2(
+																				$elm$html$Html$span,
+																				_List_fromArray(
+																					[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
+																				_List_fromArray(
+																					[
+																						$elm$html$Html$text(
+																						A2($myrho$elm_round$Round$round, 0, model.querySettings.posMismatch) + '%')
+																					])),
+																				A2(
+																				$author$project$BulmaExtensions$slider,
+																				_List_fromArray(
+																					[
+																						A2(
+																						$elm$html$Html$Attributes$attribute,
+																						'value',
+																						$elm$core$String$fromFloat(model.querySettings.posMismatch)),
+																						$author$project$Vectorian$onSliderInput(
+																						function (x) {
+																							return $author$project$Msg$UpdateQuerySettings(
+																								$author$project$Msg$PosMismatch(x));
+																						})
+																					]),
+																				'slider-pos-mismatch')
+																			])),
+																		A2(
+																		$elm$html$Html$div,
+																		_List_Nil,
+																		_List_fromArray(
+																			[
+																				A2(
+																				$elm$html$Html$span,
+																				_List_fromArray(
+																					[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
+																				_List_fromArray(
+																					[
+																						$elm$html$Html$text('POST STSS Weighting')
+																					])),
+																				A2(
+																				$elm$html$Html$span,
+																				_List_fromArray(
+																					[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
+																				_List_fromArray(
+																					[
+																						$elm$html$Html$text(
+																						A2($myrho$elm_round$Round$round, 0, model.querySettings.posWeighting) + '%')
+																					])),
+																				A2(
+																				$author$project$BulmaExtensions$slider,
+																				_List_fromArray(
+																					[
+																						A2(
+																						$elm$html$Html$Attributes$attribute,
+																						'value',
+																						$elm$core$String$fromFloat(model.querySettings.posWeighting)),
+																						$author$project$Vectorian$onSliderInput(
+																						function (x) {
+																							return $author$project$Msg$UpdateQuerySettings(
+																								$author$project$Msg$PosWeighting(x));
+																						})
+																					]),
+																				'slider-pos-weighting')
+																			]))
+																	]))
+															])),
+														A2($author$project$Vectorian$similarityDetailsUI, model.querySettings, model.features),
+														model.features.idf ? A2(
+														$surprisetalk$elm_bulma$Bulma$Components$card,
+														_List_Nil,
+														_List_fromArray(
+															[
+																A2(
+																$surprisetalk$elm_bulma$Bulma$Components$cardHeader,
+																_List_Nil,
+																_List_fromArray(
+																	[
+																		A2(
+																		$surprisetalk$elm_bulma$Bulma$Components$cardTitle,
+																		_List_Nil,
+																		_List_fromArray(
+																			[
+																				$elm$html$Html$text('IDF')
+																			]))
+																	])),
+																A2(
+																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
+																_List_Nil,
+																_List_fromArray(
+																	[
 																		A2(
 																		$elm$html$Html$div,
 																		_List_fromArray(
@@ -12047,148 +12208,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																			]),
 																		'slider-idf-weight')
 																	]))
-															])),
-														A2(
-														$surprisetalk$elm_bulma$Bulma$Components$card,
-														_List_Nil,
-														_List_fromArray(
-															[
-																A2(
-																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
-																_List_Nil,
-																_List_fromArray(
-																	[
-																		A3(
-																		$author$project$BulmaExtensions$checkbox,
-																		_Utils_ap(
-																			_List_fromArray(
-																				[
-																					$elm$html$Html$Events$onCheck(
-																					function (x) {
-																						return $author$project$Msg$UpdateQuerySettings(
-																							$author$project$Msg$Bidirectional(x));
-																					})
-																				]),
-																			$author$project$Vectorian$checked(model.querySettings.bidirectional)),
-																		'id-bidirectional',
-																		'Bidirectional')
-																	]))
-															]))
-													])),
-												A3(
-												$surprisetalk$elm_bulma$Bulma$Layout$tileChild,
-												$surprisetalk$elm_bulma$Bulma$Modifiers$Width4,
-												_List_Nil,
-												_List_fromArray(
-													[
-														A2(
-														$surprisetalk$elm_bulma$Bulma$Components$card,
-														_List_Nil,
-														_List_fromArray(
-															[
-																A2(
-																$surprisetalk$elm_bulma$Bulma$Components$cardHeader,
-																_List_Nil,
-																_List_fromArray(
-																	[
-																		A2(
-																		$surprisetalk$elm_bulma$Bulma$Components$cardTitle,
-																		_List_Nil,
-																		_List_fromArray(
-																			[
-																				$elm$html$Html$text('Embedding')
-																			]))
-																	]))
-															])),
-														A2(
-														$surprisetalk$elm_bulma$Bulma$Components$card,
-														_List_Nil,
-														_List_fromArray(
-															[
-																A2(
-																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
-																model.querySettings.enableElmo ? _List_fromArray(
-																	[$surprisetalk$elm_bulma$Bulma$Modifiers$invisible]) : _List_Nil,
-																_List_fromArray(
-																	[
-																		A2(
-																		$elm$html$Html$span,
-																		_List_fromArray(
-																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
-																		_List_fromArray(
-																			[
-																				$elm$html$Html$text('Fasttext')
-																			])),
-																		A2(
-																		$elm$html$Html$span,
-																		_List_fromArray(
-																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
-																		_List_fromArray(
-																			[
-																				$elm$html$Html$text('WordNet')
-																			])),
-																		A2(
-																		$author$project$BulmaExtensions$slider,
-																		_List_fromArray(
-																			[
-																				A2(
-																				$elm$html$Html$Attributes$attribute,
-																				'value',
-																				$elm$core$String$fromFloat(model.querySettings.mixEmbedding)),
-																				$author$project$Vectorian$onSliderInput(
-																				function (x) {
-																					return $author$project$Msg$UpdateQuerySettings(
-																						$author$project$Msg$MixEmbedding(x));
-																				})
-																			]),
-																		'slider-mix-embedding')
-																	]))
-															])),
-														$author$project$Vectorian$similarityMeasureUI(model.querySettings),
-														A2(
-														$surprisetalk$elm_bulma$Bulma$Components$card,
-														_List_Nil,
-														_List_fromArray(
-															[
-																A2(
-																$surprisetalk$elm_bulma$Bulma$Components$cardContent,
-																_List_Nil,
-																_List_fromArray(
-																	[
-																		A2(
-																		$elm$html$Html$span,
-																		_List_fromArray(
-																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
-																		_List_fromArray(
-																			[
-																				$elm$html$Html$text('Similarity Falloff')
-																			])),
-																		A2(
-																		$elm$html$Html$span,
-																		_List_fromArray(
-																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
-																		_List_fromArray(
-																			[
-																				$elm$html$Html$text(
-																				A2($myrho$elm_round$Round$round, 2, model.querySettings.similarityFalloff))
-																			])),
-																		A2(
-																		$author$project$BulmaExtensions$falloffSlider,
-																		_List_fromArray(
-																			[
-																				A2(
-																				$elm$html$Html$Attributes$attribute,
-																				'value',
-																				$elm$core$String$fromFloat(model.querySettings.similarityFalloff)),
-																				$author$project$Vectorian$onSliderInput(
-																				function (x) {
-																					return $author$project$Msg$UpdateQuerySettings(
-																						$author$project$Msg$SimilarityFalloff(x));
-																				})
-																			]),
-																		'slider-similarity-falloff')
-																	]))
-															]))
+															])) : A2($elm$html$Html$div, _List_Nil, _List_Nil)
 													]))
 											]))
 									])),
