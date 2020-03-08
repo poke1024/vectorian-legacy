@@ -1,5 +1,6 @@
 import spacy
 import pyarrow as pa
+import pyarrow.parquet as pq
 import pandas
 import os
 import re
@@ -475,7 +476,15 @@ def _create_document(index, vocab, cache_path):
 	if 'hash' not in md:
 		md = _write_metadata(md, cache_path)
 
-	return vcore.Document(index, vocab, md, cache_path)
+	with open(os.path.join(cache_path, "text.txt"), "r") as f:
+		text = f.read()
+
+	sentences_table = pq.read_table(
+		os.path.join(cache_path, "sentences.parquet"))
+	tokens_table = pq.read_table(
+		os.path.join(cache_path, "tokens.parquet"))
+
+	return vcore.Document(index, vocab, text, sentences_table, tokens_table, md, "")
 
 class Signatures:
 	def __init__(self, kind):

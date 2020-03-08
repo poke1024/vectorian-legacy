@@ -54,46 +54,12 @@ typedef std::unordered_map<int, float> POSWMap;
 const float smith_waterman_zero = 0.5;
 
 
-static bool file_exists(const std::string &p_path) {
-		// crashes on GCC-8 / Linux:
-		//return std::filesystem::exists(p_path + ".apsynp.parquet");
-
-		struct stat buffer;   
-		return stat(p_path.c_str(), &buffer) == 0;
-}
-
-std::shared_ptr<arrow::Table> load_parquet_table(const std::string &p_path, bool report_time=false) {
-		// see http://colinsblog.org/blog/2018/06/23/notes-on-writing-and-reading-parquet-files-in-c-plus-plus/
-		/*std::shared_ptr<arrow::io::ReadableFile> infile;
-		arrow::io::ReadableFile::Open(p_path + ".parquet", arrow::default_memory_pool(), &infile);
-
-		std::unique_ptr<parquet::arrow::FileReader> reader;
-		parquet::arrow::OpenFile(infile, arrow::default_memory_pool(), &reader);
-
-		std::shared_ptr<arrow::Table> table;
-		reader->ReadTable(&table);*/
-
-		std::chrono::time_point<std::chrono::system_clock> start, end;
-		if (report_time) {
-			printf("reading parquet table at %s\n", p_path.c_str());
-			start = std::chrono::system_clock::now();
-		}
-
-		auto pq = py::module::import("pyarrow.parquet");
-		py::object t = pq.attr("read_table")(p_path);
-		std::shared_ptr<arrow::Table> table;
-		if (!arrow::py::unwrap_table(t.ptr(), &table).ok()) {
-			throw std::runtime_error("failed to load parquet table");
-		}
-
-		if (report_time) {
-			end = std::chrono::system_clock::now();
-			printf("done in %.2fs.\n",
-				float(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()) / 1000.0f);
-			fflush(stdout);			
-		}
-
-		return table;
+std::shared_ptr<arrow::Table> unwrap_table(const py::object &p_table) {
+	std::shared_ptr<arrow::Table> table;
+	if (!arrow::py::unwrap_table(p_table.ptr(), &table).ok()) {
+		throw std::runtime_error("not a pyarrow table");
+	}
+	return table;
 }
 
 #if PYARROW_0_12_1
@@ -571,7 +537,7 @@ struct WordVectors {
 	R apsynp;
 	V neighborhood;
 
-	void initialize() {
+	void update_normalized() {
 		normalized.resize(raw.rows(), raw.cols());
 		for (Eigen::Index j = 0; j < raw.rows(); j++) {
 			const float len = raw.row(j).norm();
@@ -622,7 +588,7 @@ public:
 					}
 				}
 
-				v.initialize();
+				v.update_normalized();
 		}
 	}
 
@@ -949,7 +915,7 @@ public:
 	}
 };
 
-template<typename Distance>
+/*template<typename Distance>
 class RankedSimilarityMeasure : public SimilarityMeasure<RankedDistance<Distance>> {
 private:
 
@@ -969,7 +935,7 @@ public:
 			 this->m_distance.percentiles().col(i) = v;
 		});
 	}
-};
+};*/
 
 struct CosineSimilarity {
 	inline float operator()(
@@ -1035,21 +1001,19 @@ struct NICDMSimilarity {
 	}
 };
 
-constexpr float APSYNP_P = 0.1f; // see APSynP paper
-
 struct APSynPSimilarity {
 
 	float m_min_score;
 	float m_max_score;
 
-	APSynPSimilarity(const int n_dim) {
+	APSynPSimilarity(const int n_dim, const float apsynp_p) {
 		float max_score = 0.0f;
 		for (int i = 1; i <= n_dim; i++) {
-			max_score += 1.0f / std::pow(i, APSYNP_P);
+			max_score += 1.0f / std::pow(i, apsynp_p);
 		}
 		m_max_score = max_score;
 
-		m_min_score = n_dim * (1.0f / std::pow((1 + n_dim) / 2.0f, APSYNP_P));
+		m_min_score = n_dim * (1.0f / std::pow((1 + n_dim) / 2.0f, apsynp_p));
 	}
 
 	inline float operator()(
@@ -1067,7 +1031,6 @@ struct APSynPSimilarity {
 
 std::map<std::string, EmbeddingSimilarityRef> create_similarity_measures(
 	const std::string &p_name,
-	const std::string &p_path,
 	const WordVectors &p_vectors) {
 
 	// cosine deterioriates in high dimensions, see:
@@ -1079,26 +1042,15 @@ std::map<std::string, EmbeddingSimilarityRef> create_similarity_measures(
 
 	measures["cosine"] = std::make_shared<SimilarityMeasure<CosineSimilarity>>(p_vectors);
 
-	measures["ranked-cosine"] = std::make_shared<RankedSimilarityMeasure<CosineSimilarity>>(p_vectors);
+	//measures["ranked-cosine"] = std::make_shared<RankedSimilarityMeasure<CosineSimilarity>>(p_vectors);
 
 	measures["sqrt-cosine"] = std::make_shared<SimilarityMeasure<SqrtCosine>>(p_vectors);
 
-
-	measures["nicdm"] = std::make_shared<SimilarityMeasure<NICDMSimilarity>>(p_vectors);
-
-	measures["ranked-nicdm"] = std::make_shared<RankedSimilarityMeasure<NICDMSimilarity>>(p_vectors);
-
-	measures["apsynp"] = std::make_shared<SimilarityMeasure<APSynPSimilarity>>(
-		p_vectors, APSynPSimilarity(p_vectors.raw.cols()));
-
-	measures["ranked-apsynp"] = std::make_shared<RankedSimilarityMeasure<APSynPSimilarity>>(
-		p_vectors, APSynPSimilarity(p_vectors.raw.cols()));
-
-	measures["maximum"] = std::make_shared<MaximumSimilarityMeasure>(std::vector<EmbeddingSimilarityRef>{
+	/*measures["maximum"] = std::make_shared<MaximumSimilarityMeasure>(std::vector<EmbeddingSimilarityRef>{
 		measures["cosine"], measures["nicdm"], measures["apsynp"]});
 
 	measures["ranked-maximum"] = std::make_shared<MaximumSimilarityMeasure>(std::vector<EmbeddingSimilarityRef>{
-		measures["ranked-cosine"], measures["ranked-nicdm"], measures["ranked-apsynp"]});
+		measures["ranked-cosine"], measures["ranked-nicdm"], measures["ranked-apsynp"]});*/
 
 #if 0
 	// low pnorms can make sense, see
@@ -1495,11 +1447,11 @@ class FastEmbedding : public Embedding {
 public:
 	FastEmbedding(
 		const std::string &p_name,
-		const std::string &p_path) : Embedding(p_name) {
+		py::object p_table) : Embedding(p_name) {
 
-		const auto vectors_table = load_parquet_table(p_path + ".parquet", true);
+		const std::shared_ptr<arrow::Table> table = unwrap_table(p_table);
 
-		iterate_strings(vectors_table, "token", [this] (size_t i, const std::string &s) {
+		iterate_strings(table, "token", [this] (size_t i, const std::string &s) {
 			m_tokens[s] = static_cast<long>(i);
 		});
 
@@ -1520,13 +1472,13 @@ public:
 
 		// note: these "raw" tables were already normalized in preprocessing.
 
-		m_embeddings.raw.resize(m_tokens.size(), vectors_table->num_columns() - 1);
+		m_embeddings.raw.resize(m_tokens.size(), table->num_columns() - 1);
 
 		try {
 			/*printf("loading embedding vectors parquet table.\n");
 			fflush(stdout);*/
 
-			for_each_column<arrow::FloatType, float>(vectors_table, [this] (int i, auto v) {
+			for_each_column<arrow::FloatType, float>(table, [this] (int i, auto v) {
 				m_embeddings.raw.col(i - 1) = v.max(0);
 			}, 1);
 		} catch(...) {
@@ -1534,51 +1486,59 @@ public:
 			throw;
 		}
 
-		if (file_exists(p_path + ".apsynp.parquet")) {
-			const auto apsynp_table = load_parquet_table(p_path + ".apsynp.parquet");
-			if (size_t(apsynp_table->num_rows()) != m_tokens.size()) {
-				fprintf(stderr, "neighborhood table: token size %ld != %ld\n",
-					long(apsynp_table->num_rows()), long(m_tokens.size()));
-				throw std::runtime_error("broken table");
-			}
-			m_embeddings.apsynp.resize(m_tokens.size(), apsynp_table->num_columns());
+		m_embeddings.update_normalized();
 
-			try {
-				for_each_column<arrow::UInt16Type, uint16_t>(apsynp_table, [this] (int i, auto v) {
-					m_embeddings.apsynp.col(i) = v.template cast<float>().pow(APSYNP_P);
-				});
-			} catch(...) {
-				printf("failed to load apsynp parquet table.");
-				throw;
-			}
+		m_similarity_measures = create_similarity_measures(p_name, m_embeddings);
+	}
+
+	void add_apsynp(py::object p_table, float apsynp_p = 0.1) {
+		const std::shared_ptr<arrow::Table> table = unwrap_table(p_table);
+
+		if (size_t(table->num_rows()) != m_tokens.size()) {
+			fprintf(stderr, "neighborhood table: token size %ld != %ld\n",
+				long(table->num_rows()), long(m_tokens.size()));
+			throw std::runtime_error("broken table");
+		}
+		m_embeddings.apsynp.resize(m_tokens.size(), table->num_columns());
+
+		try {
+			for_each_column<arrow::UInt16Type, uint16_t>(table, [this, apsynp_p] (int i, auto v) {
+				m_embeddings.apsynp.col(i) = v.template cast<float>().pow(apsynp_p);
+			});
+		} catch(...) {
+			printf("failed to load apsynp parquet table.");
+			throw;
 		}
 
-		if (file_exists(p_path + ".neighborhood.parquet")) {
-			const auto neighborhood_table = load_parquet_table(p_path + ".neighborhood.parquet");
-			if (size_t(neighborhood_table->num_rows()) != m_tokens.size()) {
-				fprintf(stderr, "neighborhood table: token size %ld != %ld\n",
-					long(neighborhood_table->num_rows()), long(m_tokens.size()));
-				throw std::runtime_error("broken table");
-			}
-			m_embeddings.neighborhood.resize(m_tokens.size(), neighborhood_table->num_columns());
+		m_similarity_measures["apsynp"] = std::make_shared<SimilarityMeasure<APSynPSimilarity>>(
+			m_embeddings, APSynPSimilarity(m_embeddings.raw.cols(), apsynp_p));
 
-			try {
-				for_each_column<arrow::FloatType, float>(neighborhood_table, [this] (int i, auto v) {
-					m_embeddings.neighborhood.col(i) = v;
-				});
-			} catch(...) {
-				printf("failed to load neighborhood parquet table.\n");
-				throw;
-			}
+		//m_similarity_measures["ranked-apsynp"] = std::make_shared<RankedSimilarityMeasure<APSynPSimilarity>>(
+		//	m_embeddings, APSynPSimilarity(m_embeddings.raw.cols(), apsynp_p));
+	}
+
+	void add_nicdm(py::object p_table) {
+		const std::shared_ptr<arrow::Table> table = unwrap_table(p_table);
+
+		if (size_t(table->num_rows()) != m_tokens.size()) {
+			fprintf(stderr, "neighborhood table: token size %ld != %ld\n",
+				long(table->num_rows()), long(m_tokens.size()));
+			throw std::runtime_error("broken table");
+		}
+		m_embeddings.neighborhood.resize(m_tokens.size(), table->num_columns());
+
+		try {
+			for_each_column<arrow::FloatType, float>(table, [this] (int i, auto v) {
+				m_embeddings.neighborhood.col(i) = v;
+			});
+		} catch(...) {
+			printf("failed to load neighborhood parquet table.\n");
+			throw;
 		}
 
-		// https://github.com/pybind/pybind11/blob/master/docs/advanced/pycpp/numpy.rst
+		m_similarity_measures["nicdm"] = std::make_shared<SimilarityMeasure<NICDMSimilarity>>(m_embeddings);
 
-		m_embeddings.initialize();
-
-		// we might later introduce some boosting for wnet2vec, see Radovanovic, 2010.
-
-		m_similarity_measures = create_similarity_measures(p_name, p_path, m_embeddings);
+		//m_similarity_measures["ranked-nicdm"] = std::make_shared<RankedSimilarityMeasure<NICDMSimilarity>>(m_embeddings);
 	}
 
 	void load_percentiles(const std::string &p_path) {
@@ -2458,19 +2418,22 @@ class Document : public std::enable_shared_from_this<Document> {
 private:
 	const int64_t m_id;
 	const VocabularyRef m_vocab;
+	const std::string m_text;
 
-	const std::string m_cache_path;
-	const py::dict m_metadata;
-
-	std::string m_text;
 	TokenVectorRef m_tokens;
 	std::vector<Sentence> m_sentences;
 	size_t m_max_len_s;
 
+	const py::dict m_metadata;
+	std::string m_cache_path;
+
 public:
 	Document(
-		int64_t p_p_document_id,
+		int64_t p_document_id,
 		VocabularyRef p_vocab,
+		const std::string &p_text,
+		const py::object &p_sentences,
+		const py::object &p_tokens,
 		const py::dict &p_metadata,
 		const std::string &p_cache_path);
 
@@ -3184,30 +3147,22 @@ typedef std::shared_ptr<Document> DocumentRef;
 Document::Document(
 	int64_t p_document_id,
 	VocabularyRef p_vocab,
+	const std::string &p_text,
+	const py::object &p_sentences,
+	const py::object &p_tokens,
 	const py::dict &p_metadata,
-	const std::string &p_cache_path) :
+	const std::string &p_cache_path = std::string()):
 
 	m_id(p_document_id),
 	m_vocab(p_vocab),
-	m_cache_path(p_cache_path),
-	m_metadata(p_metadata) {
+	m_text(p_text),
+	m_metadata(p_metadata),
+	m_cache_path(p_cache_path) {
 
-	const std::string text_path(p_cache_path + "/text.txt");
-	std::ifstream file(text_path.c_str());
-	if (!file.good()) {
-		throw std::runtime_error(std::string(
-			"could not find text file at ") + text_path);
-	}
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	m_text = buffer.str();
-
-	const auto sentences_table =
-		load_parquet_table(p_cache_path + "/sentences.parquet");
+	const auto sentences_table = unwrap_table(p_sentences);
 	m_sentences = unpack_sentences(sentences_table);
 
-	const auto tokens_table =
-		load_parquet_table(p_cache_path + "/tokens.parquet");
+	const auto tokens_table = unwrap_table(p_tokens);
 	m_tokens = unpack_tokens(
 		p_vocab, MODIFY_VOCABULARY, m_text, tokens_table);
 
@@ -3403,10 +3358,15 @@ PYBIND11_MODULE(vcore, m) {
 	py::class_<Embedding, EmbeddingRef> embedding(m, "Embedding");
 
 	py::class_<FastEmbedding, Embedding, FastEmbeddingRef> fast_embedding(m, "FastEmbedding");
-	fast_embedding.def(py::init<const std::string &, const std::string &>());
+	fast_embedding.def(py::init<const std::string &, py::object>());
+
+	fast_embedding.def("add_apsynp", &FastEmbedding::add_apsynp);
+	fast_embedding.def("add_nicdm", &FastEmbedding::add_nicdm);
+
 	fast_embedding.def("cosine_similarity", &FastEmbedding::cosine_similarity);
 	fast_embedding.def("similarity_matrix", &FastEmbedding::similarity_matrix);
 	fast_embedding.def("load_percentiles", &FastEmbedding::load_percentiles);
+
 	fast_embedding.def_property_readonly("n_tokens", &FastEmbedding::n_tokens);
 	fast_embedding.def_property_readonly("measures", &FastEmbedding::measures);
 
@@ -3422,7 +3382,9 @@ PYBIND11_MODULE(vcore, m) {
 	query.def("abort", &Query::abort);
 
 	py::class_<Document, DocumentRef> document(m, "Document");
-	document.def(py::init<int64_t, VocabularyRef, py::dict, const std::string &>());
+
+	document.def(py::init<int64_t, VocabularyRef, const std::string&, py::object, py::object,
+		py::dict, const std::string&>());
 	document.def("find", &Document::find);
 	document.def("__str__", &Document::__str__);
 	document.def("__repr__", &Document::__str__);
