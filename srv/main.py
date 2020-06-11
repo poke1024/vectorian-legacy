@@ -9,6 +9,8 @@ import locale
 import asyncio
 import janus
 import traceback
+import os
+import logging
 
 from config import Config
 
@@ -19,8 +21,8 @@ class BaseHandler(tornado.web.RequestHandler):
 
 
 class LoginHandler(BaseHandler):
-	def __init__(self, config):
-		self._config = config
+	def initialize(self, vectorian_config):
+		self._config = vectorian_config
 
 	def get(self):
 		self.render("login.html")
@@ -34,8 +36,8 @@ class LoginHandler(BaseHandler):
 
 
 class MainHandler(BaseHandler):
-	def initialize(self, config):
-		if config.password is None:
+	def initialize(self, vectorian_config):
+		if vectorian_config.password is None:
 			self.set_secure_cookie("user", "researcher")
 
 	@tornado.web.authenticated
@@ -143,8 +145,8 @@ def make_app(app, config):
 		(r'/static/(.*)',
 			tornado.web.StaticFileHandler,
 			{'path': os.path.join(tornado_path, 'static')}),
-		(r"/", MainHandler, dict(config=config)),
-		(r"/login", LoginHandler, dict(config=config)),
+		(r"/", MainHandler, dict(vectorian_config=config)),
+		(r"/login", LoginHandler, dict(vectorian_config=config)),
 		(r'/ws', SocketHandler, dict(app=app)),
 		(r'/batch', BatchHandler, dict(app=app)),
 	]
