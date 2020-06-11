@@ -4,7 +4,6 @@ import tornado.platform.asyncio
 from tornado import websocket
 
 import json
-import socket
 import locale
 import asyncio
 import janus
@@ -18,6 +17,17 @@ from config import Config
 class BaseHandler(tornado.web.RequestHandler):
 	def get_current_user(self):
 		return self.get_secure_cookie("user")
+
+	def write_error(self, status_code, **kwargs):
+		if "exc_info" in kwargs:
+			logging.error(traceback.format_exc(*kwargs["exc_info"]))
+		else:
+			logging.error(traceback.format_exc())
+		self.write("Vectorian encountered an internal error (%s)." % status_code)
+
+	# useful for debugging.
+	#def _handle_request_exception(self, e):
+	#	logging.error(traceback.format_exc())
 
 
 class LoginHandler(BaseHandler):
