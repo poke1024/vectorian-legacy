@@ -3,9 +3,12 @@ import json
 
 from pathlib import Path
 
+
 class Config:
 	def __init__(self):
+		# hard-coded default configuration.
 		self._config = dict(
+			port=8080,
 			password=None,
 			cookie_secret='very.sikrit.',
 			deploy_url=None,
@@ -19,6 +22,10 @@ class Config:
 		if config_path.exists():
 			with open(config_path, "r") as f:
 				self._config = json.loads(f.read())
+
+	@property
+	def port(self):
+		return int(self._config["port"])
 
 	@property
 	def password(self):

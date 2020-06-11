@@ -99,6 +99,11 @@ shakespeare
 
 # Using Vectorian
 
+## Configuration File
+
+The Vectorian directory can contain a `.config.json` file that configures
+additional behaviour. This is optional however.
+
 ## Launching Vectorian
 
 ```
@@ -179,7 +184,6 @@ PrivateTmp=true
 StandardOutput=syslog
 StandardError=syslog
 Environment=OPENBLAS_NUM_THREADS=2
-Environment=VECTORIAN_PORT=8080
 
 [Install]
 WantedBy=multi-user.target

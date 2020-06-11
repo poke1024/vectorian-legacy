@@ -170,22 +170,12 @@ if __name__ == "__main__":
 		locale.LC_ALL,
 		'en_US.utf8' if (config.deploy_url is not None) else 'en_US')
 
-	import os
-	import platform
-
-	if platform.system() == 'Darwin':
-		port = 8080
-	else:
-		if 'VECTORIAN_PORT' not in os.environ:
-			raise RuntimeError("missing VECTORIAN_PORT env var.")
-		port = int(os.environ['VECTORIAN_PORT'])
-
 	from app import App
 
 	try:
 		app = make_app(App(), config)
-		print("running on port %d." % port)
-		app.listen(port)
+		print("running on port %d." % config.port)
+		app.listen(config.port)
 		tornado.ioloop.IOLoop.current().start()
 	except Exception as e:
 		print("tornado aborts with an exception.", flush=True)
