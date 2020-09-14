@@ -54,12 +54,17 @@ typedef std::unordered_map<int, float> POSWMap;
 const float smith_waterman_zero = 0.5;
 
 
-std::shared_ptr<arrow::Table> unwrap_table(const py::object &p_table) {
-	std::shared_ptr<arrow::Table> table;
-	if (!arrow::py::unwrap_table(p_table.ptr(), &table).ok()) {
+std::shared_ptr<arrow::Table> unwrap_table(PyObject *p_table) {
+	arrow::Result<std::shared_ptr<arrow::Table>> table(
+        arrow::py::unwrap_table(p_table));
+	if (!table.ok()) {
 		throw std::runtime_error("not a pyarrow table");
 	}
-	return table;
+	return *table;
+}
+
+std::shared_ptr<arrow::Table> unwrap_table(const py::object &p_table) {
+    return unwrap_table(p_table.ptr());
 }
 
 #if PYARROW_0_12_1
@@ -2031,10 +2036,8 @@ public:
 		py::handle p_tokens_table,
 		py::kwargs p_kwargs) : m_text(p_text), m_aborted(false) {
 
-		std::shared_ptr<arrow::Table> table;
-		if (!arrow::py::unwrap_table(p_tokens_table.ptr(), &table).ok()) {
-			throw std::runtime_error("bad tokens table in Query::Query");
-		}
+		const std::shared_ptr<arrow::Table> table(
+		    unwrap_table(p_tokens_table.ptr()));
 
 		m_t_tokens = unpack_tokens(
 			p_vocab, DO_NOT_MODIFY_VOCABULARY, p_text, table);
