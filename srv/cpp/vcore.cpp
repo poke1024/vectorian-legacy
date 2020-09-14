@@ -5,6 +5,7 @@ import numpy
 import os
 import platform
 import operator
+import cppimport
 
 def normalize_version(v):
     parts = [int(x) for x in v.split(".")]
@@ -64,6 +65,9 @@ if platform.system() == 'Darwin':  # >= macOS 10.14.6
   # see https://github.com/pybind/python_example/issues/44
   cfg['compiler_args'].append("-mmacosx-version-min=10.15")
   cfg['linker_args'].append("-mmacosx-version-min=10.15")
+
+print("building cpp backend with these settings: ", cfg)
+cppimport.set_quiet(False)
 
 setup_pybind11(cfg)
 %>
