@@ -40,21 +40,26 @@ Unzip and put this to `/path/to/vectorian/data/fasttext/wiki-news-300d-1M-subwor
 There's also support for the larger crawl-300d-2M-subword. Note that this is not recommeneded for
 standard installations, as loading and preprocessing times are high.
 
-### Installing the Eigen library
+### Installing necessary libraries
 
 Eigen is needed by vectorian's C++ backend and by <a href="https://github.com/poke1024/simileco">simileco</a>.
+Pyarrow C++ headers are also needed.
 
 #### on macOS
 
-Use `brew install eigen`.
+```
+conda install -c conda-forge pyarrow
+brew install eigen
+```
 
 On some versions of macOS, you might need to patch eigen:
 
 https://stackoverflow.com/questions/46356153/xcode-9-falls-to-build-partial-template-specialization-in-c
 
-#### on Ubuntu
+#### on Debian
 
 ```
+conda install -c conda-forge pyarrow
 sudo apt install libeigen3-dev
 ```
 
