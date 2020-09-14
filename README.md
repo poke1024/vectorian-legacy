@@ -15,7 +15,6 @@ conda create --name vectorian python=3.7
 conda activate vectorian
 
 git clone https://github.com/poke1024/vectorian
-git checkout v2
 cd vectorian
 
 # install core dependencies
