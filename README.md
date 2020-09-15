@@ -43,25 +43,29 @@ standard installations, as loading and preprocessing times are high.
 ### Installing necessary libraries
 
 Eigen is needed by vectorian's C++ backend and by <a href="https://github.com/poke1024/simileco">simileco</a>.
-Pyarrow C++ headers are also needed.
+Vectorian needs a current version of Eigen >= 3.90. Since this is not the stable version,
+you need to install it manually (note that this a header-only library that does not need compilation):
 
-#### on macOS
+```
+git clone https://gitlab.com/libeigen/eigen
+mkdir build
+cd build
+cmake ..
+cd ..
+sudo make install
+```
+
+Pyarrow C++ headers are also needed. Install via:
 
 ```
 conda install -c conda-forge pyarrow
-brew install eigen
 ```
+
+#### Special install stuff for macOS
 
 On some versions of macOS, you might need to patch eigen:
 
 https://stackoverflow.com/questions/46356153/xcode-9-falls-to-build-partial-template-specialization-in-c
-
-#### on Debian
-
-```
-conda install -c conda-forge pyarrow
-sudo apt install libeigen3-dev
-```
 
 # Adding Text Data to the Vectorian
 
