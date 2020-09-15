@@ -24,6 +24,7 @@ if platform.system() == 'Linux':
   cfg['libraries'] = ['arrow', 'arrow_python']
   cfg['linker_args'] = ['-L' + pyarrow.get_library_dirs()[0]]
 
+  cfg['include_dirs'].append('/usr/local/include/eigen3')
   cfg['include_dirs'].append('/usr/include/eigen3/')
 else:
   cfg['include_dirs'].append('/usr/local/include/eigen3')
@@ -40,7 +41,7 @@ if platform.system() == 'Linux':
   cfg['compiler_args'].append('-std=c++1z')  # GNU-C C++17 support
   os.environ["CC"] = "gcc-8"
   os.environ["CXX"] = "gcc-8"
-  cfg['compiler_args'].append('-D_GLIBCXX_USE_CXX11_ABI=0')
+  cfg['compiler_args'].append('-D_GLIBCXX_USE_CXX11_ABI=1')
 
 if int(os.environ.get('DEBUG_VECTORIAN', 0)) != 0:
   cfg['compiler_args'].append('-g')
@@ -56,7 +57,7 @@ else:
 # see https://github.com/pybind/pybind11/blob/master/docs/faq.rst
 cfg['compiler_args'].append('-fvisibility=hidden')
 
-cfg['sources'] = ['src.cpp']
+cfg['sources'] = ['src.cpp', 'ppk_assert.cpp']
 
 if platform.system() == 'Darwin':  # >= macOS 10.14.6
   cfg['compiler_args'].append("-stdlib=libc++")

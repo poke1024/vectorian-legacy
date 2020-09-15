@@ -11,9 +11,6 @@
 
 namespace py = pybind11;
 
-
-#include "aligner.h"
-
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 
@@ -28,18 +25,19 @@ using Eigen::ArrayXf;
 #include <map>
 #include <set>
 #include <chrono>
-// #include <filesystem>
 
 #include <sys/mman.h>
 #include <fcntl.h>
 
-// https://github.com/pybind/pybind11/issues/1201
-
-// https://github.com/Tessil/array-hash
-
 #include <arrow/api.h>
 #include <arrow/io/api.h>
 #include <arrow/python/pyarrow.h>
+
+#define PPK_ASSERT_ENABLED 1
+#include "ppk_assert.h"
+
+#include "aligner.h"
+
 
 typedef int32_t token_t;
 
@@ -58,7 +56,10 @@ std::shared_ptr<arrow::Table> unwrap_table(PyObject *p_table) {
 	arrow::Result<std::shared_ptr<arrow::Table>> table(
         arrow::py::unwrap_table(p_table));
 	if (!table.ok()) {
-		throw std::runtime_error("not a pyarrow table");
+    	std::ostringstream err;
+    	err << "PyObject of type " << Py_TYPE(p_table)->tp_name <<
+    	    " could not get converted to a pyarrow table";
+		throw std::runtime_error(err.str());
 	}
 	return *table;
 }
@@ -80,24 +81,32 @@ auto column_data(const std::shared_ptr<arrow::ChunkedArray> &c) {
 template<typename ArrowType, typename CType, typename F>
 void for_each_column(const std::shared_ptr<arrow::Table> &p_table, const F &p_f, int p_first_column = 0) {
 		for (int i = p_first_column; i < p_table->num_columns(); i++) {
-			auto data = column_data(p_table->column(i));
-			if (data->num_chunks() != 1) {
-				throw std::runtime_error("parquet chunk size is not 1.");
-			}
+			const auto data = column_data(p_table->column(i));
+			size_t offset = 0;
 
-			auto array = data->chunk(0);
-			if (array->type_id() != arrow::TypeTraits<ArrowType>::type_singleton()->id()) {
-				std::string got = array->type()->name();
-				std::string expected = arrow::TypeTraits<ArrowType>::type_singleton()->name();
-				throw std::runtime_error("parquet data type is wrong. expected " + expected + ", got " + got + ".");
-			}
+		    for (int64_t k = 0; k < data->num_chunks(); k++) {
+                auto array = data->chunk(k);
 
-			auto num_array = std::static_pointer_cast<arrow::NumericArray<ArrowType>>(array);
+                if (array->type_id() != arrow::TypeTraits<ArrowType>::type_singleton()->id()) {
+                    std::string got = array->type()->name();
+                    std::string expected = arrow::TypeTraits<ArrowType>::type_singleton()->name();
 
-			const Eigen::Map<Eigen::Array<CType, Eigen::Dynamic, 1>> v(
-				const_cast<CType*>(num_array->raw_values()), num_array->length());
+    			    std::ostringstream err;
+    			    err << "parquet data type of chunk " << k << "is wrong. expected " <<
+    			        expected << ", got " + got + ".";
 
-			p_f(i, v);
+                    throw std::runtime_error(err.str());
+                }
+
+                auto num_array = std::static_pointer_cast<arrow::NumericArray<ArrowType>>(array);
+
+                const Eigen::Map<Eigen::Array<CType, Eigen::Dynamic, 1>> v(
+                    const_cast<CType*>(num_array->raw_values()), num_array->length());
+
+                p_f(i, v, offset);
+
+                offset += num_array->length();
+		    }
 		}
 }
 
@@ -690,7 +699,7 @@ public:
 		size_t p_s_offset,
 		size_t p_s_len) const {
 
-		assert(m_good);
+		PPK_ASSERT(m_good);
 
 		return ElmoSentenceScores(
 			m_document_matrix->view(p_s_offset, p_s_len),
@@ -1159,7 +1168,7 @@ public:
 
 	int add_embedding(EmbeddingRef p_embedding) {
 		std::lock_guard<std::mutex> lock(m_mutex);
-		assert(m_tokens.size() == 0);
+		PPK_ASSERT(m_tokens.size() == 0);
 		Embedding e;
 		e.embedding = p_embedding;
 		m_embeddings.push_back(e);
@@ -1272,8 +1281,8 @@ void init_pyarrow() {
 	}
 }
 
-template<typename T>
-const std::shared_ptr<arrow::NumericArray<T>> numeric_column(
+template<typename T, typename TV>
+const std::vector<TV> numeric_column(
 	const std::shared_ptr<arrow::Table> &table,
 	const std::string &field) {
 
@@ -1281,21 +1290,35 @@ const std::shared_ptr<arrow::NumericArray<T>> numeric_column(
 	if (i < 0) {
 		throw std::runtime_error("extract_raw_values: illegal field name");
 	}
-
 	auto data = column_data(table->column(i));
-	if (data->num_chunks() != 1) {
-		throw std::runtime_error("extract_raw_values: chunks != 1");
-	}
-	auto array = data->chunk(0);
 
-	if (array->type_id() != arrow::TypeTraits<T>::type_singleton()->id()) {
-		std::stringstream s;
-		s << "extract_raw_values: wrong data type " <<
-			array->type()->name() << " != " << arrow::TypeTraits<T>::type_singleton()->name();
-		throw std::runtime_error(s.str());
-	}
+	std::vector<TV> values;
+    int64_t count = 0;
+    for (int64_t k = 0; k < data->num_chunks(); k++) {
+    	auto array = data->chunk(k);
+        count += array->length();
+    }
 
-	return std::static_pointer_cast<arrow::NumericArray<T>>(array);
+    values.reserve(count);
+    int64_t write_offset = 0;
+
+    for (int64_t k = 0; k < data->num_chunks(); k++) {
+    	auto array = data->chunk(k);
+
+        if (array->type_id() != arrow::TypeTraits<T>::type_singleton()->id()) {
+            std::stringstream s;
+            s << "extract_raw_values: wrong data type " <<
+                array->type()->name() << " != " << arrow::TypeTraits<T>::type_singleton()->name();
+            throw std::runtime_error(s.str());
+        }
+
+    	auto num_array = std::static_pointer_cast<arrow::NumericArray<T>>(array);
+    	const auto *raw = num_array->raw_values();
+    	std::copy(raw, raw + array->length(), &values[write_offset]);
+    	write_offset += array->length();
+    }
+
+    return values;
 }
 
 /*template<typename T>
@@ -1352,29 +1375,24 @@ public:
 	}
 };
 
-std::shared_ptr<arrow::StringArray> string_column(
-		const std::shared_ptr<arrow::Table> &table,
-		const std::string &field) {
+/*std::shared_ptr<arrow::StringArray> string_column(
+    const std::shared_ptr<arrow::Table> &table,
+    const std::string &field) {
 
-		const int i = table->schema()->GetFieldIndex(field);
-		if (i < 0) {
-			throw std::runtime_error("extract_raw_values: illegal field name");
-		}
-		auto data = column_data(table->column(i));
-		assert(data->num_chunks() == 1);
-		auto array = data->chunk(0);
-		assert(array->type_id() == arrow::TypeTraits<arrow::StringType>::type_singleton()->id());
+    const int i = table->schema()->GetFieldIndex(field);
+    if (i < 0) {
+        throw std::runtime_error("extract_raw_values: illegal field name");
+    }
+    auto data = column_data(table->column(i));
 
-		//printf("dict array %p\n", std::dynamic_pointer_cast<arrow::DictionaryArray>(array).get());
+    for (size_t k = 0; k < data->num_chunks(); k++) {
+        auto array = data->chunk(k);
+        PPK_ASSERT(array->type_id() == arrow::TypeTraits<arrow::StringType>::type_singleton()->id());
+        auto s = std::dynamic_pointer_cast<arrow::StringArray>(array);
+        PPK_ASSERT(s);
+    }
 
-		auto s = std::dynamic_pointer_cast<arrow::StringArray>(array);
-		if (!s) {
-			printf("got %p %ld %s\n", array.get(), (long)array->length(), array->type()->name().c_str());
-			/*StringVisitor v;
-			array->Accept(&v);*/
-		}
-		return s;
-}
+}*/
 
 template<typename F>
 void iterate_strings(
@@ -1387,14 +1405,15 @@ void iterate_strings(
 		throw std::runtime_error("extract_raw_values: illegal field name");
 	}
 	auto data = column_data(table->column(i));
-	assert(data->num_chunks() == 1);
-	auto array = data->chunk(0);
-	assert(array->type_id() == arrow::TypeTraits<arrow::StringType>::type_singleton()->id());
+    StringVisitor v(f);
+    for (int64_t k = 0; k < data->num_chunks(); k++) {
+        auto array = data->chunk(k);
+        PPK_ASSERT(array->type_id() == arrow::TypeTraits<arrow::StringType>::type_singleton()->id());
 
-	StringVisitor v(f);
-	if (!array->Accept(&v).ok()) {
-		throw std::runtime_error("arrow iteration error in iterate_strings");
-	}
+        if (!array->Accept(&v).ok()) {
+            throw std::runtime_error("arrow iteration error in iterate_strings");
+        }
+    }
 }
 
 template<typename F>
@@ -1434,14 +1453,14 @@ void iterate_floats(
 		throw std::runtime_error("extract_raw_values: illegal field name");
 	}
 	auto data = column_data(table->column(i));
-	assert(data->num_chunks() == 1);
-	auto array = data->chunk(0);
-	assert(array->type_id() == arrow::TypeTraits<arrow::FloatType>::type_singleton()->id());
-
 	FloatVisitor v(f);
-	if (!array->Accept(&v).ok()) {
-		throw std::runtime_error("arrow iteration error in iterate_floats");
-	}
+    for (int64_t k = 0; k < data->num_chunks(); k++) {
+        auto array = data->chunk(k);
+    	PPK_ASSERT(array->type_id() == arrow::TypeTraits<arrow::FloatType>::type_singleton()->id());
+        if (!array->Accept(&v).ok()) {
+            throw std::runtime_error("arrow iteration error in iterate_floats");
+        }
+    }
 }
 
 class FastEmbedding : public Embedding {
@@ -1459,6 +1478,8 @@ public:
 		iterate_strings(table, "token", [this] (size_t i, const std::string &s) {
 			m_tokens[s] = static_cast<long>(i);
 		});
+
+		std::cout << "loaded " << m_tokens.size() << " tokens." << std::endl;
 
 		/*{
 			auto tokens = string_column(table, "token");
@@ -1483,8 +1504,8 @@ public:
 			/*printf("loading embedding vectors parquet table.\n");
 			fflush(stdout);*/
 
-			for_each_column<arrow::FloatType, float>(table, [this] (int i, auto v) {
-				m_embeddings.raw.col(i - 1) = v.max(0);
+			for_each_column<arrow::FloatType, float>(table, [this] (int i, auto v, auto offset) {
+				m_embeddings.raw.col(i - 1)(Eigen::seqN(offset, v.size())) = v.max(0);
 			}, 1);
 		} catch(...) {
 			printf("failed to load embedding vectors parquet table.\n");
@@ -1500,15 +1521,15 @@ public:
 		const std::shared_ptr<arrow::Table> table = unwrap_table(p_table);
 
 		if (size_t(table->num_rows()) != m_tokens.size()) {
-			fprintf(stderr, "neighborhood table: token size %ld != %ld\n",
+			fprintf(stderr, "apsynp table: token size %ld != %ld\n",
 				long(table->num_rows()), long(m_tokens.size()));
 			throw std::runtime_error("broken table");
 		}
 		m_embeddings.apsynp.resize(m_tokens.size(), table->num_columns());
 
 		try {
-			for_each_column<arrow::UInt16Type, uint16_t>(table, [this, apsynp_p] (int i, auto v) {
-				m_embeddings.apsynp.col(i) = v.template cast<float>().pow(apsynp_p);
+			for_each_column<arrow::UInt16Type, uint16_t>(table, [this, apsynp_p] (int i, auto v, auto offset) {
+				m_embeddings.apsynp.col(i)(Eigen::seqN(offset, v.size())) = v.template cast<float>().pow(apsynp_p);
 			});
 		} catch(...) {
 			printf("failed to load apsynp parquet table.");
@@ -1526,15 +1547,15 @@ public:
 		const std::shared_ptr<arrow::Table> table = unwrap_table(p_table);
 
 		if (size_t(table->num_rows()) != m_tokens.size()) {
-			fprintf(stderr, "neighborhood table: token size %ld != %ld\n",
+			fprintf(stderr, "nicdm table: token size %ld != %ld\n",
 				long(table->num_rows()), long(m_tokens.size()));
 			throw std::runtime_error("broken table");
 		}
 		m_embeddings.neighborhood.resize(m_tokens.size(), table->num_columns());
 
 		try {
-			for_each_column<arrow::FloatType, float>(table, [this] (int i, auto v) {
-				m_embeddings.neighborhood.col(i) = v;
+			for_each_column<arrow::FloatType, float>(table, [this] (int i, auto v, auto offset) {
+				m_embeddings.neighborhood.col(i)(Eigen::seqN(offset, v.size())) = v;
 			});
 		} catch(...) {
 			printf("failed to load neighborhood parquet table.\n");
@@ -1670,7 +1691,7 @@ private:
 		for (size_t i = 0; i < p_needle.size(); i++) {
 			const token_t t = needle_vocabulary_token_ids[i];
 			if (t >= 0) {
-				assert(t < p_vocabulary_to_embedding.rows());
+				PPK_ASSERT(t < p_vocabulary_to_embedding.rows());
 				needle_embedding_token_ids[i] =
 					p_vocabulary_to_embedding[t]; // map to Embedding token ids
 			} else {
@@ -1707,15 +1728,14 @@ private:
 typedef std::shared_ptr<FastEmbedding> FastEmbeddingRef;
 
 std::vector<Sentence> unpack_sentences(const std::shared_ptr<arrow::Table> &p_table) {
-	const auto *book = numeric_column<arrow::Int8Type>(p_table, "book")->raw_values();
-	const auto *chapter = numeric_column<arrow::Int8Type>(p_table, "chapter")->raw_values();
-	const auto *speaker = numeric_column<arrow::Int8Type>(p_table, "speaker")->raw_values();
-	const auto *location = numeric_column<arrow::UInt16Type>(p_table, "location")->raw_values();
+	const auto book = numeric_column<arrow::Int8Type, int8_t>(p_table, "book");
+	const auto chapter = numeric_column<arrow::Int8Type, int8_t>(p_table, "chapter");
+	const auto speaker = numeric_column<arrow::Int8Type, int8_t>(p_table, "speaker");
+	const auto location = numeric_column<arrow::UInt16Type, uint16_t>(p_table, "location");
 
-	const auto n_tokens_array = numeric_column<arrow::UInt16Type>(p_table, "n_tokens");
-	const auto *n_tokens_values = n_tokens_array->raw_values();
+	const auto n_tokens_values = numeric_column<arrow::UInt16Type, uint16_t>(p_table, "n_tokens");
 
-	const size_t n = n_tokens_array->length();
+	const size_t n = n_tokens_values.size();
 	std::vector<Sentence> sentences;
 	sentences.reserve(n);
 
@@ -1750,15 +1770,13 @@ TokenVectorRef unpack_tokens(
 	const std::string p_text,
 	const std::shared_ptr<arrow::Table> &p_table) {
 
-	const auto idx_array = numeric_column<arrow::UInt32Type>(p_table, "idx");
-	const auto len_array = numeric_column<arrow::UInt8Type>(p_table, "len");
-	const auto *idx = idx_array->raw_values();
-	const auto *len = len_array->raw_values();
+	const auto idx = numeric_column<arrow::UInt32Type, uint32_t>(p_table, "idx");
+	const auto len = numeric_column<arrow::UInt8Type, uint8_t>(p_table, "len");
 
 	/*const auto pos_array = string_column(p_table, "pos");
 	const auto tag_array = string_column(p_table, "tag");*/
 
-	const size_t n = idx_array->length();
+	const size_t n = idx.size();
 
 	TokenVectorRef tokens_ref = std::make_shared<std::vector<Token>>();
 
@@ -1771,7 +1789,8 @@ TokenVectorRef unpack_tokens(
 		if (idx[i] + len[i] > p_text.length()) {
 			std::ostringstream s;
 			s << "illegal token idx @" << i << "/" << n << ": " <<
-				idx[i] << " + " << int(len[i]) << " > " << p_text.length();
+				idx[i] << " + " << len[i] <<
+				" > " << p_text.length();
 			throw std::runtime_error(s.str());
 		}
 
@@ -1805,13 +1824,6 @@ TokenVectorRef unpack_tokens(
 	}
 
 	return tokens_ref;
-}
-
-inline void myassert(bool f, const char *s) {
-	if (!f) {
-		printf("%s\n", s);
-		std::abort();
-	}
 }
 
 class MismatchPenalty {
@@ -2552,7 +2564,7 @@ struct MatchDigest::compare {
 
 			}
 		} else {
-			assert(a.document.get() && b.document.get());
+			PPK_ASSERT(a.document.get() && b.document.get());
 			if (C<int64_t>()(a.document->id(), b.document->id())) {
 				return true;
 			}
@@ -2585,7 +2597,7 @@ struct Match::compare_by_score {
 				}
 			} else {
 
-				assert(a->document().get() && b->document().get());
+				PPK_ASSERT(a->document().get() && b->document().get());
 
 				if (C<int64_t>()(a->document()->id(), b->document()->id())) {
 					return true;
@@ -2626,7 +2638,7 @@ py::tuple Match::location() const {
 }
 
 py::list Match::regions() const {
-	assert(document().get() != nullptr);
+	PPK_ASSERT(document().get() != nullptr);
 
 	const std::string &s_text = document()->text();
 	const std::string &t_text = m_query->text();
@@ -2640,8 +2652,8 @@ py::list Match::regions() const {
 	const auto &match = this->match();
 	const auto &scores = m_scores;
 
-	assert(match.size() > 0);
-	assert(match.size() == scores.size());
+	PPK_ASSERT(match.size() > 0);
+	PPK_ASSERT(match.size() == scores.size());
 
 	int match_0 = 0;
 	for (auto m : match) {
@@ -2842,7 +2854,7 @@ public:
 		 // not yet implemented, should remove
 		// duplicate results on the same sentence.
 
-		 assert(false);
+		 PPK_ASSERT(false);
 	}
 
 	py::list best_n(size_t p_count) const;
@@ -3266,7 +3278,7 @@ MetricRef ElmoEmbedding::create_metric(
 		const POSWMap &p_pos_weights,
 		const float p_idf_weight) {
 
-		assert(p_embedding_similarity == "cosine"); // hard-coded right now.
+		PPK_ASSERT(p_embedding_similarity == "cosine"); // hard-coded right now.
 
 		return std::make_shared<ElmoMetric>(
 			p_needle_text,
