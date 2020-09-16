@@ -1299,7 +1299,7 @@ const std::vector<TV> numeric_column(
         count += array->length();
     }
 
-    values.reserve(count);
+    values.resize(count);
     int64_t write_offset = 0;
 
     for (int64_t k = 0; k < data->num_chunks(); k++) {
