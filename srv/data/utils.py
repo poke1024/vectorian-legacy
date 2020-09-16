@@ -14,6 +14,7 @@ from numba import jit
 
 import multiprocessing
 import os
+import traceback
 
 
 def _compute_inverse_ranking(vec):
@@ -86,7 +87,7 @@ class Compute:
 		self._chunk_size = 500
 		self._k = 100  # (maximum) number of nearest neighbors to average over
 
-		print("building ball tree.")
+		print("building ball tree...")
 		self._tree = BallTree(embeddings, leaf_size=2)
 		print("done.")
 
@@ -111,14 +112,21 @@ def prepare_neighborhood(embeddings, parquet_path):
 	c = Compute(embeddings)
 	n_tokens = len(embeddings)
 
-	print("computing.")
+	print("computing neighborhood...")
 
-	pool = multiprocessing.Pool(multiprocessing.cpu_count() // 2)
+	try:
+		pool = multiprocessing.Pool(multiprocessing.cpu_count() // 2)
 
-	neighborhood_distance = np.empty(shape=(n_tokens, c._k), dtype=np.float32)
-	items = list(range(0, n_tokens, c._chunk_size))
-	for i, (y, r) in tqdm(enumerate(pool.imap_unordered(c.compute, items)), total=len(items)):
-		neighborhood_distance[y, :] = r
+		neighborhood_distance = np.empty(shape=(n_tokens, c._k), dtype=np.float32)
+		items = list(range(0, n_tokens, c._chunk_size))
+		print(f"processing {n_tokens} tokens as {len(items)} items with chunk size {c._chunk_size}...")
+
+		for i, (y, r) in tqdm(enumerate(
+			pool.imap_unordered(c.compute, items)), total=len(items)):
+			neighborhood_distance[y, :] = r
+	except:
+		traceback.print_exc()
+		os.exit(1)
 
 	import pyarrow.parquet as pq
 

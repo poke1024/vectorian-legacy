@@ -31,6 +31,7 @@ def _load_embeddings(csv_path):
 
 	return tokens, embeddings
 
+
 def _prepare_fasttext(csv_path, parquet_path, config):
 	from tqdm import tqdm
 	import numpy
