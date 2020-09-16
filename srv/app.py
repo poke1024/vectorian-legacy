@@ -8,6 +8,7 @@ import os
 import shutil
 import argparse
 import sys
+from datetime import datetime
 
 import logging
 
@@ -401,7 +402,7 @@ class App:
 		parser.add_argument(
 			'--dump', nargs='?', type=str, const="__default__", help='path to export corpus to')
 		parser.add_argument(
-			'--eval', nargs='?', help='evaluate the given yml file')
+			'--eval', nargs='?', type=str, const="__default__", help='evaluate the given yml file')
 		args = parser.parse_args()
 
 		data_path = Path(os.path.join(os.path.dirname(
@@ -429,12 +430,14 @@ class App:
 		os.makedirs(running_path, exist_ok=True)
 		os.makedirs(done_path, exist_ok=True)
 
-		if os.path.isdir(incoming_path) and not args.eval:
-			for f in os.listdir(incoming_path):
-				p = os.path.join(incoming_path, f)
-				if os.path.isdir(p):
-					shutil.move(p, running_path)
-					args.eval = os.path.join(running_path, f)
+		if args.eval == "__default__":
+			args.eval = None
+			assert incoming_path.is_dir()
+			for f in incoming_path.iterdir():
+				p = incoming_path / f
+				if p.is_dir():
+					shutil.move(str(p), str(running_path))
+					args.eval = running_path / f
 					break
 
 		if args.eval:
@@ -448,7 +451,12 @@ class App:
 			os.makedirs(matrix_path, exist_ok=True)
 
 			def on_evaluation_finished():
-				shutil.move(basepath, done_path)
+				print("evaluation is finished.", flush=True)
+				try:
+					now = datetime.today().isoformat().replace(":", "-")
+					shutil.move(str(basepath), str(done_path / (basepath.name + "-" + now)))
+				except:
+					traceback.print_exc()
 
 			self._evaluator = evaluation.evaluate(
 				grid, measures, topics, matrix_path, on_evaluation_finished)
@@ -460,7 +468,7 @@ class App:
 			topic_defs = yaml.safe_load(f)
 
 		resolver = data.corpus.signature_resolver(
-			self.documents, parser=topic_defs['parser'])
+			self.documents, parser=topic_defs.get('parser'))
 
 		print("loading topics.")
 		topics = list()

@@ -114,11 +114,13 @@ def can_be_sentence_start(token):
 	else:
 		return token.nbor(-1).is_punct and token.nbor(-1).text != ','
 
+
 def prevent_sentence_boundaries(doc):
 	for token in doc:
 		if not can_be_sentence_start(token):
 			token.is_sent_start = False
 	return doc
+
 
 def configure_nlp(nlp):
 	nlp.add_pipe(prevent_sentence_boundaries, before="parser")
@@ -465,11 +467,13 @@ def _acronym(title, length=4, ignore=set()):
 
 	return title[:length]
 
+
 def _document_signature(md):
 	author = md['author'].split(' ')[-1].upper()[:4]
 	title = _acronym(md['title'], ignore=['THE', 'A', 'OF', ',', '&', 'AND', 'OR'])
 	hash = md['hash'][::4].upper()
 	return '%s-%s-%s' % (author, title, hash)
+
 
 def _create_document(index, vocab, cache_path):
 	with open(os.path.join(cache_path, "metadata.json"), "r") as f:
@@ -504,6 +508,11 @@ class Signatures:
 		return self._signatures
 
 
+def _sentence_signature(s, i):
+	hash = hashlib.sha1(s.encode('utf8')).hexdigest().upper()
+	return "%s-%06d-%s" % (_acronym(s, 6), i + 1, hash[::4][:6])
+
+
 def _signatures(docs, parser=None):
 	doc_signatures = Signatures("document")
 
@@ -515,19 +524,18 @@ def _signatures(docs, parser=None):
 		for doc in docs:
 			md = doc.metadata
 
-			if parser and 'parser' in md:
-				if parser != md['parser']:
-					raise RuntimeError(
-						"parser mismatch in corpus cache: %s != %s." % (parser, md['parser']))
-
 			sentence_signatures = Signatures("sentence")
 
-			for i, s in enumerate(doc.sentences_as_text):
-				s = s.strip()
-				if s:
-					hash = hashlib.sha1(s.encode('utf8')).hexdigest().upper()
-					sentence_signature = "%s-%06d-%s" % (_acronym(s, 6), i + 1, hash[::4][:6])
-					sentence_signatures.add(sentence_signature, i)
+			if parser is not None:
+				if 'parser' in md:
+					if parser != md['parser']:
+						raise RuntimeError(
+							"parser mismatch in corpus cache: %s != %s." % (parser, md['parser']))
+
+				for i, s in enumerate(doc.sentences_as_text):
+					s = s.strip()
+					if s:
+						sentence_signatures.add(_sentence_signature(s, i), i)
 
 			doc_signatures.add(
 				_document_signature(md),
@@ -550,6 +558,22 @@ def dump_corpus(docs, dump_path):
 			for sen_sig, sen_id in sentence_signatures.items():
 				f.write("%s/%s\n: %s\n\n" % (doc_sig, sen_sig, sentences[sen_id]))
 
+
+def _normalize(s):
+	return re.sub(r"[^\w]+", " ", s.lower()).strip()
+
+
+def build_signatures_by_quote(doc, text):
+	text = _normalize(text)
+	results = []
+
+	for i, s in enumerate(doc.sentences_as_text):
+		if text in _normalize(s):
+			results.append((doc.id, i))
+
+	return results
+
+
 def signature_resolver(docs, parser=None):
 	all_signatures = _signatures(docs, parser)
 
@@ -563,6 +587,8 @@ def signature_resolver(docs, parser=None):
 			on_error = fail_on_error
 
 		for signature in signatures:
+			signature = signature.strip()
+
 			doc_sig, sen_sig = signature.split('/')
 
 			if doc_sig not in all_signatures:
@@ -571,11 +597,19 @@ def signature_resolver(docs, parser=None):
 
 			doc, sentence_signatures = all_signatures[doc_sig]
 
-			if sen_sig not in sentence_signatures:
-				on_error("sentence", sen_sig, document=doc)
-				continue
+			if sen_sig.startswith(":"):
+				r = build_signatures_by_quote(doc, sen_sig[1:])
+				if not r:
+					on_error("sentence", sen_sig, document=doc)
+					continue
+				else:
+					results.extend(r)
+			else:
+				if sen_sig not in sentence_signatures:
+					on_error("sentence", sen_sig, document=doc)
+					continue
 
-			results.append((doc.id, sentence_signatures[sen_sig]))
+				results.append((doc.id, sentence_signatures[sen_sig]))
 
 		return results  # a list of (document id, sentence ids) pairs
 

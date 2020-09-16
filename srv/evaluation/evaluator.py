@@ -3,7 +3,10 @@ import traceback
 import sys
 import os
 
+from tqdm import tqdm
+
 from. utils import *
+
 
 class Evaluator(pykka.ThreadingActor):
 	def __init__(self, grid, measures, topics, matrix_path, on_done=None):
@@ -22,7 +25,6 @@ class Evaluator(pykka.ThreadingActor):
 		self._parameters = None
 		self._pending = 0
 
-		from tqdm import tqdm
 		self._tqdm = tqdm(
 			desc='evaluation',
 			total=grid.size * len(topics))
@@ -85,9 +87,15 @@ class Evaluator(pykka.ThreadingActor):
 					# write to the current topic's matrix.
 					break
 
+				print("done with topic %d (total %d)." % (
+					1 + self._current_topic_index, len(self._topics)))
 				self._current_topic_index += 1
 
 				if self._current_topic_index >= len(self._topics):
+					print("writing matrix data...", flush=True)
+					self._matrix.close()
+					print("grid search is done.", flush=True)
+
 					if self._on_done:
 						self._on_done()
 					return  # we're done

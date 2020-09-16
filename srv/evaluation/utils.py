@@ -34,6 +34,7 @@ class Grid:
 		import itertools
 		return itertools.product(*self._values)
 
+
 class Measures:
 	def __init__(self, filename):
 		import yaml
@@ -79,6 +80,7 @@ class Measures:
 
 		return measured
 
+
 class Topic:
 	def __init__(self, truth):
 		self._truth = truth
@@ -90,10 +92,12 @@ class Topic:
 	def search(self, parameters, reply):
 		raise NotImplementedError()
 
+
 class Matrix:
 	def __init__(self, grid, measures, filename):
 		self._grid = grid
 		self._measures = measures
+		self._path = filename
 
 		self._matrix = numpy.memmap(
 			filename,
@@ -113,6 +117,26 @@ class Matrix:
 		self._matrix.flush()
 
 	def close(self):
+		self.write_as_json()
+
 		# this is a hack, as there's no official to do this
 		# as of 2019/10/06.
 		self._matrix._mmap.close()
+
+	def write_as_json(self):
+		cartesian = tuple(self._grid.cartesian())
+		measures = tuple(self._measures.names)
+		assert len(cartesian) == self._matrix.shape[0]
+		assert len(measures) == self._matrix.shape[1]
+
+		with open(self._path + ".csv", "w") as f:
+			for m in measures:
+				f.write(";%s" % m)
+			f.write("\n")
+
+			for grid_index, grid_params in enumerate(cartesian):
+				f.write("%s;" % str(grid_params))
+				row = []
+				for measure_index in range(len(measures)):
+					row.append("%f" % self._matrix[grid_index, measure_index])
+				f.write(";".join(row) + "\n")
