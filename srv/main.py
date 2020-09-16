@@ -62,8 +62,8 @@ class SocketHandler(websocket.WebSocketHandler):
 		self._delegate = self._app.start_session(self._ws_send)
 		self._delegate_proxy = self._delegate.proxy()
 
-		loop = asyncio.get_event_loop()
-		self._send_queue = janus.Queue(loop=loop)
+		janus.current_loop = asyncio.get_event_loop
+		self._send_queue = janus.Queue()
 		self._send_task = None
 
 	def check_origin(self, origin):
