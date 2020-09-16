@@ -78,6 +78,20 @@ auto column_data(const std::shared_ptr<arrow::ChunkedArray> &c) {
 }
 #endif
 
+template<typename ArrowType, typename Array>
+static void ensure_type(const Array &array) {
+    if (array->type_id() != arrow::TypeTraits<ArrowType>::type_singleton()->id()) {
+        std::string got = array->type()->name();
+        std::string expected = arrow::TypeTraits<ArrowType>::type_singleton()->name();
+
+        std::ostringstream err;
+        err << "parquet data type of chunk is wrong. expected " <<
+            expected << ", got " + got + ".";
+
+        throw std::runtime_error(err.str());
+    }
+}
+
 template<typename ArrowType, typename CType, typename F>
 void for_each_column(const std::shared_ptr<arrow::Table> &p_table, const F &p_f, int p_first_column = 0) {
 		for (int i = p_first_column; i < p_table->num_columns(); i++) {
@@ -86,17 +100,7 @@ void for_each_column(const std::shared_ptr<arrow::Table> &p_table, const F &p_f,
 
 		    for (int64_t k = 0; k < data->num_chunks(); k++) {
                 auto array = data->chunk(k);
-
-                if (array->type_id() != arrow::TypeTraits<ArrowType>::type_singleton()->id()) {
-                    std::string got = array->type()->name();
-                    std::string expected = arrow::TypeTraits<ArrowType>::type_singleton()->name();
-
-    			    std::ostringstream err;
-    			    err << "parquet data type of chunk " << k << "is wrong. expected " <<
-    			        expected << ", got " + got + ".";
-
-                    throw std::runtime_error(err.str());
-                }
+                ensure_type<ArrowType>(array);
 
                 auto num_array = std::static_pointer_cast<arrow::NumericArray<ArrowType>>(array);
 
@@ -1408,7 +1412,7 @@ void iterate_strings(
     StringVisitor v(f);
     for (int64_t k = 0; k < data->num_chunks(); k++) {
         auto array = data->chunk(k);
-        PPK_ASSERT(array->type_id() == arrow::TypeTraits<arrow::StringType>::type_singleton()->id());
+        ensure_type<arrow::StringType>(array);
 
         if (!array->Accept(&v).ok()) {
             throw std::runtime_error("arrow iteration error in iterate_strings");
@@ -1456,7 +1460,7 @@ void iterate_floats(
 	FloatVisitor v(f);
     for (int64_t k = 0; k < data->num_chunks(); k++) {
         auto array = data->chunk(k);
-    	PPK_ASSERT(array->type_id() == arrow::TypeTraits<arrow::FloatType>::type_singleton()->id());
+        ensure_type<arrow::DoubleType>(array);
         if (!array->Accept(&v).ok()) {
             throw std::runtime_error("arrow iteration error in iterate_floats");
         }
@@ -1777,6 +1781,7 @@ TokenVectorRef unpack_tokens(
 	const auto tag_array = string_column(p_table, "tag");*/
 
 	const size_t n = idx.size();
+	PPK_ASSERT(n == len.size());
 
 	TokenVectorRef tokens_ref = std::make_shared<std::vector<Token>>();
 
