@@ -1,7 +1,7 @@
 import os
 import pyarrow.parquet as pq
 
-from .utils import prepare_apsynp, make_table, prepare_neighborhood, prepare_percentiles
+from .utils import prepare_apsynp, make_table, prepare_neighborhood, load_embedding
 
 
 def _prepare_wn2vec(path, parquet_path, config):
@@ -41,14 +41,6 @@ def load(vcore, config):
 	if not os.path.exists(parquet_path + ".parquet"):
 		_prepare_wn2vec(os.path.join(data_path, "wn2vec"), parquet_path, config)
 
-	print("loading fasttext parquet table...")
-	vec_table = pq.read_table(parquet_path + ".parquet")
-	print("done.")
+	return load_embedding(vcore, config, parquet_path, "wn2vec")
 
-	embedding = vcore.FastEmbedding("wn2vec", vec_table)
-
-	if 'percentiles' in config.metrics:
-		prepare_percentiles(embedding, parquet_path)
-
-	return embedding
 

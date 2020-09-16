@@ -1,6 +1,7 @@
 import scipy.stats
 import multiprocessing
 from joblib import Parallel, delayed
+import pyarrow.parquet as pq
 
 
 import scipy.stats
@@ -200,3 +201,26 @@ def prepare_percentiles(embedding, parquet_path):
 			version='2.0')
 
 	embedding.load_percentiles(parquet_path)
+
+
+def load_embedding(vcore, config, parquet_path, name):
+	print(f"loading {name} parquet table...")
+	vec_table = pq.read_table(parquet_path + ".parquet")
+	print("done.")
+
+	embedding = vcore.FastEmbedding(name, vec_table)
+
+	if 'apsynp' in config.metrics:
+		apsynp_path = parquet_path + ".apsynp.parquet"
+		embedding.add_apsynp(pq.read_table(apsynp_path), 0.1)
+
+	if 'nicdm' in config.metrics:
+		nicdm_path = parquet_path + ".neighborhood.parquet"
+		embedding.add_nicdm(pq.read_table(nicdm_path))
+
+	if 'percentiles' in config.metrics:
+		prepare_percentiles(embedding, parquet_path)
+
+	print(f"installed {name} measures are: {embedding.measures}")
+
+	return embedding
