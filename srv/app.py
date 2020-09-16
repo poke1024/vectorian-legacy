@@ -6,8 +6,13 @@ import traceback
 import sys
 import os
 import shutil
+import argparse
+import sys
 
 import logging
+
+from pathlib import Path
+
 
 if int(os.environ.get('VERBOSE_VECTORIAN', 0)) != 0:
 	logging.basicConfig(level=logging.DEBUG)
@@ -391,29 +396,34 @@ class App:
 	def _batch_processing(self):
 		# perform special batch commands here.
 
-		import argparse
-		import sys
-
 		parser = argparse.ArgumentParser(
 			description='Vectorian corpus search.')
 		parser.add_argument(
-			'--dump', nargs='?', help='path to export corpus to')
+			'--dump', nargs='?', type=str, const="__default__", help='path to export corpus to')
 		parser.add_argument(
 			'--eval', nargs='?', help='evaluate the given yml file')
 		args = parser.parse_args()
 
+		data_path = Path(os.path.join(os.path.dirname(
+			os.path.realpath(__file__)),
+			"..", "data"))
+
 		if args.dump:
-			data.corpus.dump_corpus(self._docs, args.dump)
+			dump_path = args.dump
+			if dump_path == "__default__":
+				dump_path = data_path / "signatures"
+
+			os.makedirs(dump_path, exist_ok=True)
+			data.corpus.dump_corpus(self._docs, dump_path)
+
 			print("export done.")
 			sys.exit(0)
 
-		batches_path = os.path.join(os.path.dirname(
-			os.path.realpath(__file__)),
-			"..", "data", "batches")
+		batches_path = data_path / "batches"
 
-		incoming_path = os.path.join(batches_path, "incoming")
-		running_path = os.path.join(batches_path, "running")
-		done_path = os.path.join(batches_path, "done")
+		incoming_path = batches_path / "incoming"
+		running_path = batches_path / "running"
+		done_path = batches_path / "done"
 
 		os.makedirs(incoming_path, exist_ok=True)
 		os.makedirs(running_path, exist_ok=True)
@@ -428,13 +438,13 @@ class App:
 					break
 
 		if args.eval:
-			basepath = args.eval
+			basepath = Path(args.eval)
 
-			topics = self._load_topics(os.path.join(basepath, "topics.yml"))
-			grid = evaluation.Grid(os.path.join(basepath, "grid.yml"))
-			measures = evaluation.Measures(os.path.join(basepath, "measures.yml"))
+			topics = self._load_topics(basepath / "topics.yml")
+			grid = evaluation.Grid(basepath / "grid.yml")
+			measures = evaluation.Measures(basepath / "measures.yml")
 
-			matrix_path = os.path.join(basepath, "evaluated")
+			matrix_path = basepath / "evaluated"
 			os.makedirs(matrix_path, exist_ok=True)
 
 			def on_evaluation_finished():
