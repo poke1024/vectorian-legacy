@@ -5,8 +5,12 @@ import pandas
 import os
 import re
 import json
-from functools import partial
 import cpp as vcore
+import hashlib
+import concurrent
+
+from functools import partial
+from tqdm import tqdm
 
 
 def _current_parser():
@@ -81,7 +85,6 @@ def _write_metadata(md, cache_path):
 	with open(os.path.join(cache_path, "text.txt"), "r") as f:
 		fulltext = '%s:%s:%s' % (md['author'], md['title'], f.read())
 
-	import hashlib
 	md['hash'] = hashlib.sha1(fulltext.encode('utf8')).hexdigest()
 
 	with open(os.path.join(cache_path, "metadata.json"), "w") as f:
@@ -160,7 +163,6 @@ class Importer:
 		token_table = TokenTable()
 		sentence_data = [[], [], [], [], []]
 
-		from tqdm import tqdm
 		print("creating cache for %s." %
 			os.path.relpath(self._cache_path, _cache_path), flush=True)
 
@@ -486,6 +488,7 @@ def _create_document(index, vocab, cache_path):
 
 	return vcore.Document(index, vocab, text, sentences_table, tokens_table, md, "")
 
+
 class Signatures:
 	def __init__(self, kind):
 		import collections
@@ -500,10 +503,8 @@ class Signatures:
 	def to_dict(self):
 		return self._signatures
 
-def _signatures(docs, parser=None):
-	import hashlib
-	from tqdm import tqdm
 
+def _signatures(docs, parser=None):
 	doc_signatures = Signatures("document")
 
 	n_sentences = 0
@@ -535,6 +536,7 @@ def _signatures(docs, parser=None):
 			progress.update(doc.n_sentences)
 
 	return doc_signatures.to_dict()
+
 
 def dump_corpus(docs, dump_path):
 	import os
@@ -579,6 +581,7 @@ def signature_resolver(docs, parser=None):
 
 	return resolve
 
+
 def documents(vocab, nlp):
 	importers = list(_create_importers())
 
@@ -589,10 +592,23 @@ def documents(vocab, nlp):
 			if not importer.cached:
 				importer.ensure_cache(nlp)
 
-	from tqdm import tqdm
 	docs = []
-	for i, importer in enumerate(tqdm(importers, desc="importing documents")):
-		docs.append(_create_document(i, vocab, importer.ensure_cache(nlp)))
+
+	with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+		futures = []
+		for i, importer in enumerate(importers):
+			futures.append(executor.submit(
+				_create_document, i, vocab, importer.ensure_cache(nlp)))
+
+		for future in tqdm(
+			concurrent.futures.as_completed(futures),
+			desc="importing documents",
+			total=len(importers)):
+			docs.append(future.result())
+
+	#for i, importer in enumerate(tqdm(importers, desc="importing documents")):
+	#docs.append(_create_document(i, vocab, importer.ensure_cache(nlp)))
+
 	return docs
 
 
