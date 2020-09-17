@@ -4,6 +4,7 @@ import numbers
 import pykka.messages
 import yaml
 import logging
+import threading
 
 from pathlib import Path
 from. utils import *
@@ -24,15 +25,13 @@ class Objective:
 			'mix_fasttext_wn2vec', 0.0, 1.0)
 		bidirectional = trial.suggest_categorical(
 			'bidirectional', ['false', 'true']) == 'true'
-		mismatch_length_penalty = trial.suggest_int(
-			'mismatch_length_penalty', -1, 10)
 
 		params = dict(
 			ignore_determiners=ignore_determiners,
-			pos_weighting=trial.suggest_uniform('pos_weighting', 0.0, 1.0),
-			pos_mismatch=trial.suggest_uniform('pos_mismatch', 0.0, 1.0),
 			metrics=[["fasttext", "wn2vec", mix_fasttext_wn2vec]],
-			mismatch_length_penalty=mismatch_length_penalty,
+			pos_weighting=trial.suggest_uniform('pos_weighting', 0.0, 1.0),
+			pos_mismatch_penalty=trial.suggest_uniform('pos_mismatch_penalty', 0.0, 1.0),
+			mismatch_length_penalty=trial.suggest_int('mismatch_length_penalty', -1, 10),
 			submatch_weight=trial.suggest_uniform('submatch_weight', 0, 5),
 			idf_weight=trial.suggest_uniform('idf_weight', 0.0, 1.0),
 			bidirectional=bidirectional,
@@ -60,28 +59,37 @@ class Objective:
 		return score
 
 
+def _optimize(config, measures, topics, basepath):
+	import optuna
+
+	study = optuna.create_study(direction="maximize")
+	# storage="sqlite:///example.db", study_name="my_study"
+
+	with open(basepath / "evaluation_core.csv", "w") as f:
+		objective = Objective(measures, topics, f)
+
+		study.optimize(
+			objective, n_trials=int(config["n_trials"]))
+
+		f.write("%d;best;%f;%s\n" % (
+			study.best_trial.number, study.best_value, str(study.best_params)))
+		f.flush()
+
+	df = study.trials_dataframe()
+	df.to_csv(basepath / "evaluation_full.csv")
+
+	print("optuna done.", flush=True)
+
+
 def evaluate(config, measures, topics, basepath, on_done=None):
+	# set this to logging.DEBUG to debug strange hangs.
 	logging.getLogger('pykka').setLevel(logging.ERROR)
 
 	strategy = config["strategy"]
 	if strategy == "optuna":
-		import optuna
-
-		study = optuna.create_study(direction="maximize")
-		# storage="sqlite:///example.db", study_name="my_study"
-
-		with open(basepath / "evaluation_core.csv", "w") as f:
-			objective = Objective(measures, topics, f)
-
-			study.optimize(
-				objective, n_trials=int(config["n_trials"]))
-
-			f.write("%d;best;%f;%s\n" % (
-				study.best_trial.number, study.best_value, str(study.best_params)))
-			f.flush()
-
-		df = study.trials_dataframe()
-		df.to_csv(basepath / "evaluation_full.csv")
+		t = threading.Thread(
+			target=_optimize, args=(config, measures, topics, basepath))
+		t.start()
 
 		return None
 

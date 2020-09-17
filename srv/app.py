@@ -307,6 +307,7 @@ class Topic(evaluation.Topic):
 		options['metrics'] = [tuple(m) for m in options['metrics']]
 
 		options['pos_weights'] = _batanovic_weighting(options['pos_weighting'])
+		del options['pos_weighting']
 
 		query = vcore.Query(
 			self._app._vocab,

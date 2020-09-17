@@ -148,8 +148,8 @@ class BlockingEvaluator(pykka.ThreadingActor):
 	def evaluate(self, **params):
 		print("evaluating parameters:", str(params))
 
-		self._queue = []
-		self._results = []
+		assert len(self._queue) == 0
+		assert len(self._results) == 0
 
 		for i in range(len(self._topics)):
 			self._queue.append((i, params))
@@ -186,5 +186,7 @@ class BlockingEvaluator(pykka.ThreadingActor):
 		if not self._queue:
 			self._future.set_result(
 				np.average(self._results, axis=0))
+
+			self._results = []
 		else:
 			self.next_search()

@@ -4,13 +4,17 @@ import math
 # averaging AveragePrecision over many queries will give
 # us mean average precision (MAP).
 
+
 class Measurable:
 	def __init__(self, recommended, relevant):
 		self._recommended = recommended
 		self._relevant = set(relevant)
 
+		if len(self._relevant) < 1:
+			raise ValueError("need at least 1 relevant item")
+
 		self._rel_data = numpy.zeros(
-			(len(self._recommended), ), dtype=numpy.int8)
+			(max(len(self._recommended), len(relevant)), ), dtype=numpy.int8)
 		for k, rec in enumerate(self._recommended):
 			if rec in self._relevant:
 				self._rel_data[k] = 1
