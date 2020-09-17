@@ -1,0 +1,18 @@
+---
+- type: precision_at_k
+  k: 5
+- type: precision_at_k
+  k: 10
+- type: r_precision
+- type: average_precision
+  n: 10
+- type: average_precision
+  n: 50
+- type: average_precision
+  n: 100
+- type: discounted_cumulative_gain
+  n: 10
+- type: discounted_cumulative_gain
+  n: 50
+- type: discounted_cumulative_gain
+  n: 100

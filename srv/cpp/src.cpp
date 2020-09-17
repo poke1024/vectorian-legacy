@@ -1483,7 +1483,7 @@ public:
 			m_tokens[s] = static_cast<long>(i);
 		});
 
-		std::cout << "loaded " << m_tokens.size() << " tokens." << std::endl;
+		std::cout << p_name << ": " << "loaded " << m_tokens.size() << " tokens." << std::endl;
 
 		/*{
 			auto tokens = string_column(table, "token");

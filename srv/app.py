@@ -8,9 +8,9 @@ import os
 import shutil
 import argparse
 import sys
-from datetime import datetime
-
+import yaml
 import logging
+from datetime import datetime
 
 from pathlib import Path
 
@@ -306,6 +306,8 @@ class Topic(evaluation.Topic):
 
 		options['metrics'] = [tuple(m) for m in options['metrics']]
 
+		options['pos_weights'] = _batanovic_weighting(options['pos_weighting'])
+
 		query = vcore.Query(
 			self._app._vocab,
 			self._query_text,
@@ -344,10 +346,11 @@ class App:
 
 		self._vocab = vocab
 
-		print("loading spacy.", flush=True)
+		print("loading spacy... ", flush=True, end="")
 		import spacy
 		self._nlp = spacy.load("en_core_web_lg")
 		data.corpus.configure_nlp(self._nlp)
+		print("done.", flush=True)
 
 		self._docs = data.corpus.documents(vocab, self._nlp)
 
@@ -444,11 +447,9 @@ class App:
 			basepath = Path(args.eval)
 
 			topics = self._load_topics(basepath / "topics.yml")
-			grid = evaluation.Grid(basepath / "grid.yml")
+			with open(basepath / "config.yml") as f:
+				config = yaml.safe_load(f)
 			measures = evaluation.Measures(basepath / "measures.yml")
-
-			matrix_path = basepath / "evaluated"
-			os.makedirs(matrix_path, exist_ok=True)
 
 			def on_evaluation_finished():
 				print("evaluation is finished.", flush=True)
@@ -459,7 +460,7 @@ class App:
 					traceback.print_exc()
 
 			self._evaluator = evaluation.evaluate(
-				grid, measures, topics, matrix_path, on_evaluation_finished)
+				config, measures, topics, basepath, on_evaluation_finished)
 
 	def _load_topics(self, filename):
 		import yaml

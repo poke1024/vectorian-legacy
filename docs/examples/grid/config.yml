@@ -1,0 +1,27 @@
+---
+strategy: grid
+grid:
+  ignore_determiners:
+    - false
+  pos_weighting:
+    - 0.75
+    - 1
+  pos_mismatch:
+    - 1
+  metrics:
+    - [[fasttext, wn2vec, 0]]
+  mismatch_length_cutoff:
+    - "off"
+  submatch_weight:
+    - 0
+    - 4
+  idf_weight:
+    - 0
+  bidirectional:
+    - false
+  similarity_threshold:
+    - 0.1
+  similarity_falloff:
+    - 1
+  similarity_measure:
+    - cosine

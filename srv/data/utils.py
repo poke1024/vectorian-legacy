@@ -88,9 +88,9 @@ class Compute:
 		self._chunk_size = 500
 		self._k = 100  # (maximum) number of nearest neighbors to average over
 
-		print("building ball tree...")
+		print("building ball tree... ", flush=True, end="")
 		self._tree = BallTree(embeddings, leaf_size=2)
-		print("done.")
+		print("done.", flush=True)
 
 		self._embeddings = embeddings
 
@@ -204,9 +204,9 @@ def prepare_percentiles(embedding, parquet_path):
 
 
 def load_embedding(vcore, config, parquet_path, name):
-	print(f"loading {name} parquet table...")
+	print(f"loading {name} parquet table... ", flush=True, end="")
 	vec_table = pq.read_table(parquet_path + ".parquet")
-	print("done.")
+	print("done.", flush=True)
 
 	embedding = vcore.FastEmbedding(name, vec_table)
 
@@ -221,6 +221,6 @@ def load_embedding(vcore, config, parquet_path, name):
 	if 'percentiles' in config.metrics:
 		prepare_percentiles(embedding, parquet_path)
 
-	print(f"installed {name} measures are: {embedding.measures}")
+	print(f"{name}: installed measures are: {embedding.measures}.")
 
 	return embedding

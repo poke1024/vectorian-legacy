@@ -78,8 +78,9 @@ def _compute_elmo(args):
 
 
 def precompute(n_processes=2):
-	print("loading spacy.", flush=True)
+	print("loading spacy... ", flush=True, end="")
 	import spacy
+	print("done.", flush=True)
 
 	nlp = spacy.load("en_core_web_lg")
 

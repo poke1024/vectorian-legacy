@@ -1,20 +1,103 @@
-from. utils import *
-import numpy
+import numpy as np
 import collections
 import numbers
+import pykka.messages
+import yaml
+import logging
+
+from pathlib import Path
+from. utils import *
+from .evaluator import Evaluator, BlockingEvaluator
 
 
-def evaluate(grid, measures, topics, matrix_path, on_done=None):
-	from .evaluator import Evaluator
-	import logging
+class Objective:
+	def __init__(self, measures, topics, outfile):
+		self._evaluator = BlockingEvaluator.start(measures, topics)
+		self._outfile = outfile
 
+	def __call__(self, trial):
+		# FIXME percentiles
+
+		ignore_determiners = trial.suggest_categorical(
+			'bidirectional', ['false', 'true']) == 'true'
+		mix_fasttext_wn2vec = trial.suggest_uniform(
+			'mix_fasttext_wn2vec', 0.0, 1.0)
+		bidirectional = trial.suggest_categorical(
+			'bidirectional', ['false', 'true']) == 'true'
+		mismatch_length_penalty = trial.suggest_int(
+			'mismatch_length_penalty', -1, 10)
+
+		params = dict(
+			ignore_determiners=ignore_determiners,
+			pos_weighting=trial.suggest_uniform('pos_weighting', 0.0, 1.0),
+			pos_mismatch=trial.suggest_uniform('pos_mismatch', 0.0, 1.0),
+			metrics=[["fasttext", "wn2vec", mix_fasttext_wn2vec]],
+			mismatch_length_penalty=mismatch_length_penalty,
+			submatch_weight=trial.suggest_uniform('submatch_weight', 0, 5),
+			idf_weight=trial.suggest_uniform('idf_weight', 0.0, 1.0),
+			bidirectional=bidirectional,
+			similarity_threshold=trial.suggest_uniform('similarity_threshold', 0.0, 1.0),
+			similarity_falloff=trial.suggest_uniform('similarity_falloff', 0.0, 1.0),
+			similarity_measure=trial.suggest_categorical(
+				'similarity_measure', ['cosine', 'nicdm', "apsynp"]))
+
+		result = self._evaluator.ask(
+			pykka.messages.ProxyCall(
+				attr_path=['evaluate'],
+				args=[],
+				kwargs=params
+			)
+		)
+
+		scores = result.result()
+
+		score = np.average(scores)
+
+		self._outfile.write("%d;trial;%f;%s\n" % (
+			trial.number, score, str(params)))
+		self._outfile.flush()
+
+		return score
+
+
+def evaluate(config, measures, topics, basepath, on_done=None):
 	logging.getLogger('pykka').setLevel(logging.ERROR)
 
-	evaluator = Evaluator.start(grid, measures, topics, matrix_path, on_done).proxy()
+	strategy = config["strategy"]
+	if strategy == "optuna":
+		import optuna
 
-	evaluator.next_search()  # initial trigger
+		study = optuna.create_study(direction="maximize")
+		# storage="sqlite:///example.db", study_name="my_study"
 
-	return evaluator
+		with open(basepath / "evaluation_core.csv", "w") as f:
+			objective = Objective(measures, topics, f)
+
+			study.optimize(
+				objective, n_trials=int(config["n_trials"]))
+
+			f.write("%d;best;%f;%s\n" % (
+				study.best_trial.number, study.best_value, str(study.best_params)))
+			f.flush()
+
+		df = study.trials_dataframe()
+		df.to_csv(basepath / "evaluation_full.csv")
+
+		return None
+
+	elif strategy == "grid":
+		matrix_path = basepath / "evaluated"
+		matrix_path.mkdir(exist_ok=True)
+
+		new_evaluator = Evaluator.start(
+			Grid(config["grid"]), measures, topics, matrix_path, on_done).proxy()
+
+		new_evaluator.next_search()  # initial trigger
+
+		return new_evaluator
+
+	else:
+		raise ValueError(f"illegal strategy {strategy}")
 
 
 def diff_1(a, b):
@@ -82,19 +165,32 @@ def _bulma_table_head_title(name):
 
 class Evaluation:
 	def __init__(self, grid, measures, results):
+		frames = []
+		matrix_path = os.path.join(path, "evaluated")
+		for matrix_name in os.listdir(matrix_path):
+			p = os.path.join(matrix_path, matrix_name)
+			if os.path.isfile(p):
+				array = np.memmap(
+					p,
+					dtype='float32',
+					mode='r',
+					shape=(grid.size, measures.size))
+				frames.append(array)
+
+
 		self._grid = grid
 		self._measures = measures
 
 		import numpy
 		complete_results = []
 		for r in results:
-			if numpy.all(r > -1.0):
+			if np.all(r > -1.0):
 				complete_results.append(r)
 
 		self._results = complete_results
 
 		if self._results:
-			self._mean = numpy.mean(numpy.array(self._results), axis=0)
+			self._mean = np.mean(np.array(self._results), axis=0)
 		else:
 			self._mean = results[0]
 
@@ -107,25 +203,17 @@ class Evaluation:
 				os.path.realpath(__file__)),
 				"..", "..", "data", "evaluation")
 
-		if not os.path.exists(path):
+		path = Path(path)
+
+		if not path.exists():
 			return None
 
-		grid = Grid(os.path.join(path, "grid.yml"))
-		measures = Measures(os.path.join(path, "measures.yml"))
-		frames = []
+		with open(path / "config.yml", 'r') as f:
+			config = yaml.safe_load(f)
 
-		matrix_path = os.path.join(path, "evaluated")
-		for matrix_name in os.listdir(matrix_path):
-			p = os.path.join(matrix_path, matrix_name)
-			if os.path.isfile(p):
-				array = numpy.memmap(
-					p,
-					dtype='float32',
-					mode='r',
-					shape=(grid.size, measures.size))
-				frames.append(array)
+		measures = Measures(path / "measures.yml")
 
-		return Evaluation(grid, measures, frames)
+		return Evaluation(config, measures)
 
 	@property
 	def grid(self):
@@ -193,11 +281,11 @@ class Evaluation:
 
 		for measure_i, measure_name in enumerate(self.measures.names):
 			values = self.mean[:, measure_i]
-			best = numpy.argmax(values)
+			best = np.argmax(values)
 
 			best_value = values[best]
 
-			best_tied = numpy.array(range(len(values)), dtype=numpy.int32)[
+			best_tied = np.array(range(len(values)), dtype=np.int32)[
 				values >= best_value]
 
 			best = [([measure_name, best_value] + format_row(gr[i])) for i in best_tied]

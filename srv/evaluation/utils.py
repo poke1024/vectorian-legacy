@@ -1,17 +1,13 @@
 import numpy
+import yaml
 
 from .measures import Measurable
 
 
 class Grid:
-	def __init__(self, filename):
-		import yaml
-
-		with open(filename, 'r') as f:
-			grid = yaml.safe_load(f)
-
+	def __init__(self, grid):
 		if type(grid) is not dict:
-			raise RuntimeError("grid at %s must be a dict" % filename)
+			raise RuntimeError("grid must be a dict")
 
 		# guarantee defined order independent of dict.
 		pairs = sorted(list(grid.items()), key=lambda p: p[0])
@@ -37,8 +33,6 @@ class Grid:
 
 class Measures:
 	def __init__(self, filename):
-		import yaml
-
 		with open(filename, 'r') as f:
 			self._measures = yaml.safe_load(f)
 

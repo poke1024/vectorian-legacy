@@ -526,16 +526,15 @@ def _signatures(docs, parser=None):
 
 			sentence_signatures = Signatures("sentence")
 
-			if parser is not None:
-				if 'parser' in md:
-					if parser != md['parser']:
-						raise RuntimeError(
-							"parser mismatch in corpus cache: %s != %s." % (parser, md['parser']))
+			if parser is not None and 'parser' in md:
+				if parser != md['parser']:
+					raise RuntimeError(
+						"parser mismatch in corpus cache: %s != %s." % (parser, md['parser']))
 
-				for i, s in enumerate(doc.sentences_as_text):
-					s = s.strip()
-					if s:
-						sentence_signatures.add(_sentence_signature(s, i), i)
+			for i, s in enumerate(doc.sentences_as_text):
+				s = s.strip()
+				if s:
+					sentence_signatures.add(_sentence_signature(s, i), i)
 
 			doc_signatures.add(
 				_document_signature(md),

@@ -57,8 +57,6 @@ def _prepare_fasttext(csv_path, parquet_path, config):
 
 
 def load(vcore, config):
-	print("loading fasttext.", flush=True)
-
 	#filenames = [
 	#	"crawl-300d-2M-subword.vec",
 	#	"wiki-news-300d-1M-subword.vec"]
