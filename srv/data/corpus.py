@@ -219,6 +219,9 @@ class NovelImporter(Importer):
 		with open(os.path.join(self._orig_text_path), "r") as f:
 			text = f.read()
 
+		# we replace this so that "finger-wagging" becomes "finger wagging"
+		text = re.sub(r"([\w])\-([\w])", r"\1 \2", text)
+
 		chapter_breaks = []
 		expected_chapter = 1
 		book = 1
@@ -447,6 +450,7 @@ def _create_importers():
 	for args in gen:
 		for i in _create_category_importers(*args):
 			yield i
+
 
 def _acronym(title, length=4, ignore=set()):
 	title_parts = title.upper().split(' ')
