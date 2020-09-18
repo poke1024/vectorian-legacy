@@ -614,6 +614,8 @@ def signature_resolver(docs, parser=None):
 
 				results.append((doc.id, sentence_signatures[sen_sig]))
 
+		results = list(set(results))  # remove duplicates
+
 		return results  # a list of (document id, sentence ids) pairs
 
 	return resolve
