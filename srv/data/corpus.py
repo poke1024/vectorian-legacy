@@ -13,6 +13,12 @@ from functools import partial
 from tqdm import tqdm
 
 
+def normalize_dashes(s):
+	s = re.sub(r"(\w)\-(\s)", r"\1 -\2", s)
+	s = re.sub(r"(\s)\-(\w)", r"\1- \2", s)
+	return s
+
+
 def _current_parser():
 	return 'spacy-%s' % spacy.__version__
 
@@ -22,6 +28,22 @@ def ignore_token(t):
 
 
 class TokenTable:
+	_spos = {
+		'PROPN': 'NOUN'
+	}
+
+	_stag = {
+		'NNP': 'NN',
+		'NNPS': 'NNS',
+	}
+
+	@staticmethod
+	def _simplified_pos_tag(pos, tag):
+		# spaCy is very generous with labeling things as PROPN,
+		# which really breaks pos_mimatch_penalty often. we re-
+		# classify PROPN as NOUN.
+		return TokenTable._spos.get(pos, pos), TokenTable._stag.get(tag, tag)
+
 	def __init__(self):
 		self._utf8_idx = 0
 
@@ -49,10 +71,12 @@ class TokenTable:
 				if ignore_token(token):
 					continue
 
+				pos, tag = TokenTable._simplified_pos_tag(token.pos_, token.tag_)
+
 				self._token_idx.append(self._utf8_idx)
 				self._token_len.append(len(token.text.encode('utf8')))
-				self._token_pos.append(token.pos_)
-				self._token_tag.append(token.tag_)
+				self._token_pos.append(pos)
+				self._token_tag.append(tag)
 				self._token_prob.append(token.prob)
 
 		self._utf8_idx += len(text[last_idx:].encode('utf8'))
@@ -78,8 +102,10 @@ class TokenTable:
 			tokens_table_data,
             ['idx', 'len', 'pos', 'tag', 'prob'])
 
+
 _base_path = os.path.dirname(os.path.realpath(__file__))
 _cache_path = os.path.realpath(os.path.join(_base_path, '..', '..', 'data', 'cache'))
+
 
 def _write_metadata(md, cache_path):
 	with open(os.path.join(cache_path, "text.txt"), "r") as f:
@@ -169,12 +195,14 @@ class Importer:
 			os.path.relpath(self._cache_path, _cache_path), flush=True)
 
 		texts = []
+
 		for location0, doc in tqdm(zip(locations, pipe), total=len(locations)):
 			texts.append(doc.text)
 			token_table.append(doc)
 
 			for tokens in doc.sents:
-				location = tuple(list(location0) + [len([t for t in tokens if not ignore_token(t)])])
+				location = tuple(list(location0) + [
+					len([t for t in tokens if not ignore_token(t)])])
 				for a, value in zip(sentence_data, location):
 					a.append(value)
 
@@ -217,10 +245,7 @@ class NovelImporter(Importer):
 
 	def _parse(self, nlp):
 		with open(os.path.join(self._orig_text_path), "r") as f:
-			text = f.read()
-
-		# we replace this so that "finger-wagging" becomes "finger wagging"
-		text = re.sub(r"([\w])\-([\w])", r"\1 \2", text)
+			text = normalize_dashes(f.read())
 
 		chapter_breaks = []
 		expected_chapter = 1
@@ -333,7 +358,7 @@ class ShakespeareImporter(Importer):
 
 				if lines:
 					locations.append((actnum, scenenum, speaker_no, line_no))
-					texts.append(" ".join(lines))
+					texts.append(normalize_dashes(" ".join(lines)))
 
 		md = dict(
 			author="William Shakespeare",
@@ -361,7 +386,7 @@ class ScreenplayImporter(Importer):
 
 	def _parse(self, nlp):
 		with open(self._orig_text_path, "r") as f:
-			text = f.read()
+			text = normalize_dashes(f.read())
 
 		lines = []
 		locations = []
@@ -494,7 +519,8 @@ def _create_document(index, vocab, cache_path):
 	tokens_table = pq.read_table(
 		os.path.join(cache_path, "tokens.parquet"))
 
-	return vcore.Document(index, vocab, text, sentences_table, tokens_table, md, "")
+	return vcore.Document(
+		index, vocab, text, sentences_table, tokens_table, md, "")
 
 
 class Signatures:
