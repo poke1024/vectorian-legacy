@@ -526,8 +526,10 @@ public:
 		// weight based on universal POS tag.
 		float weight = m_metric->pos_weight(t.tag);
 
-		// difference based on PennTree POS tag.
-		if (s.pos != t.pos) {
+		// difference based on PennTree POS tag. do not apply
+		// if the token is the same, but only POS is different,
+		// since often this will an error in the POS tagging.
+		if (s.pos != t.pos && s.id != t.id) {
 			weight *= 1.0f - m_metric->pos_mismatch_penalty();
 		}
 
@@ -1809,8 +1811,15 @@ TokenVectorRef unpack_tokens(
         }
     }
 
+    py::object sub = (py::object) py::module::import("re").attr("sub");
+
+    auto pattern = py::str("[^\\w]");
+    auto repl = py::str("");
+
     for (size_t i = 0; i < n; i++) {
-		token_texts[i] = py::str(py::str(token_texts[i]).attr("lower")());
+        auto &t = token_texts[i];
+        auto s = py::str(py::str(t).attr("lower")());
+		t = py::str(sub(pattern, repl, s));
     }
 
     {
