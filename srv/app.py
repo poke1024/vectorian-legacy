@@ -297,7 +297,7 @@ class Topic(evaluation.Topic):
 	def __init__(self, app, query, truth):
 		super().__init__(truth)
 		self._app = app
- 		self._query_text = query
+		self._query_text = query
 
 	def search(self, parameters, reply):
 		options = dict(parameters.items())
