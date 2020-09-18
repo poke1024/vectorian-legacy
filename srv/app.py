@@ -5,6 +5,7 @@ import time
 import traceback
 import sys
 import os
+import re
 import shutil
 import argparse
 import sys
@@ -28,6 +29,11 @@ import data.wn2vec
 import data.corpus
 
 import evaluation
+
+
+def _normalize_query_text(s):
+	s = re.sub(r"[^\w]", " ", s)
+	return " ".join(re.split(r"\s+", s))
 
 
 class Task:
@@ -178,7 +184,7 @@ class Session(Abacus):
 			logging.info("ignoring submit. search is still running.")
 			return
 
-		query_text = data['query']
+		query_text = _normalize_query_text(data['query'])
 
 		pos_mismatch = float(data['pos_mismatch']) / 100
 		pos_weighting = float(data['pos_weighting']) / 100
@@ -296,7 +302,7 @@ class Topic(evaluation.Topic):
 	def __init__(self, app, query, truth):
 		super().__init__(truth)
 		self._app = app
-		self._query_text = query
+		self._query_text = _normalize_query_text(query)
 
 	def search(self, parameters, reply):
 		options = dict(parameters.items())
