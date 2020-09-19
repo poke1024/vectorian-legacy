@@ -38,13 +38,15 @@ class Measurable:
 		return sum(self.precision_at_k(k) * self._rel(k) for k in range(1, n + 1)) / m
 
 	def discounted_cumulative_gain(self, n):
-		assert n <= len(self._recommended)
-		return sum(self._rel(i) / math.log2(i + 1) for i in range(1, n + 1))
+		if len(self._recommended) == 0:
+			return 0
+		eff_n = min(n, len(self._recommended))
+		return sum(self._rel(i) / math.log2(i + 1) for i in range(1, eff_n + 1))
 
 	def normalized_discounted_cumulative_gain(self, n):
 		x = self.discounted_cumulative_gain(n)
-		R = len(self._relevant)
-		best = sum(1 / math.log2(i + 1) for i in range(1, R + 1))
+		k = min(len(self._relevant), n)
+		best = sum(1 / math.log2(i + 1) for i in range(1, k + 1))
 		return x / best
 
 	def r_precision(self):

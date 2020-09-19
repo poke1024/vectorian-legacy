@@ -224,7 +224,8 @@ class Session(Abacus):
 
 		self.submit(
 			Find(self._query),
-			self._app.documents)
+			self._app.documents,
+			verbose=True)
 
 	def on_ws_receive(self, data):
 		logging.debug("Session.on_ws_receive %s" % str(data))
@@ -284,7 +285,8 @@ class BatchJob(Abacus):
 
 		self.submit(
 			Find(self._query),
-			self._app.documents)
+			self._app.documents,
+			verbose=False)
 
 	def on_aborted(self):
 		self.stop()

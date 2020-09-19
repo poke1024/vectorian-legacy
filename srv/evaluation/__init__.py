@@ -3,12 +3,15 @@ import collections
 import numbers
 import pykka.messages
 import yaml
+import time
 import logging
 import threading
 
 from pathlib import Path
 from. utils import *
+
 from .evaluator import Evaluator, BlockingEvaluator
+from abacus import print_debug_stats
 
 
 class Objective:
@@ -48,7 +51,12 @@ class Objective:
 			)
 		)
 
+		print("waiting for result.", flush=True, end="")
+		t0 = time.time()
 		scores = result.result()
+		print(" done (%.1fs)." % (time.time() - t0), flush=True)
+
+		print_debug_stats()
 
 		score = np.average(scores)
 
@@ -82,7 +90,7 @@ def _optimize(config, measures, topics, basepath):
 
 
 def evaluate(config, measures, topics, basepath, on_done=None):
-	# set this to logging.DEBUG to debug strange hangs.
+	# set this to logging.DEBUG to debug strange hangs/aborts.
 	logging.getLogger('pykka').setLevel(logging.ERROR)
 
 	strategy = config["strategy"]

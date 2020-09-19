@@ -12,14 +12,29 @@ import humanize
 cpu_load_limit = 0.8  # cpu load we aim for.
 
 
+def print_debug_stats():
+	lines = []
+
+	lines.append("memory:")
+	lines.append("  physical: %s" % humanize.naturalsize(psutil.virtual_memory().used))
+	lines.append("  swap: %s" % humanize.naturalsize(psutil.swap_memory().used))
+
+	lines.append(f"running {threading.active_count()} threads:")
+	for thread in threading.enumerate():
+		lines.append("  " + thread.name)
+
+	logging.info("\n".join(lines))
+
+
 class Batch(pykka.ThreadingActor):
-	def __init__(self, abacus, compute, tasks):
+	def __init__(self, abacus, compute, tasks, verbose=False):
 		super().__init__()
 		self._abacus = abacus
 		self._compute = compute
 		self._tasks = iter(tasks)
 		self._aborted = False
 		self._start_time = time.time()
+		self._verbose = verbose
 
 	def on_stop(self):
 		if False:
@@ -42,10 +57,14 @@ class Batch(pykka.ThreadingActor):
 		self._abacus.on_task_done(task, result)
 
 	def on_finished(self):
-		logging.info("batch finished after %.1f s on %d cpus (%s)." % (
-			time.time() - self._start_time,
-			multiprocessing.cpu_count(),
-			"aborted" if self._aborted else "success"))
+		if self._verbose:
+			logging.info("batch finished after %.1f s on %d cpus (%s)." % (
+				time.time() - self._start_time,
+				multiprocessing.cpu_count(),
+				"aborted" if self._aborted else "success"))
+			print_debug_stats()
+		else:
+			print(".", flush=True, end="")
 
 		if self._aborted:
 			self._abacus.on_aborted()
@@ -77,7 +96,7 @@ class Abacus(pykka.ThreadingActor):
 		else:
 			return True
 
-	def submit(self, compute, tasks):
+	def submit(self, compute, tasks, verbose=False):
 		if self.batch:
 			raise RuntimeError("cannot submit multiple batches")
 
@@ -89,7 +108,8 @@ class Abacus(pykka.ThreadingActor):
 			logging.debug("creating dispatcher.")
 			Abacus.dispatch = Dispatch.start().proxy()
 
-		self.batch = Batch.start(self.actor_ref.proxy(), compute, tasks).proxy()
+		self.batch = Batch.start(
+			self.actor_ref.proxy(), compute, tasks, verbose).proxy()
 		Abacus.dispatch.add_batch(self.batch)
 
 	def on_task_done(self, task, result):
@@ -197,14 +217,7 @@ class Dispatch(pykka.ThreadingActor):
 			del self._n_tasks[id(batch)]
 			batch.on_finished()
 			batch.stop()
-
-			print("memory:")
-			print("  physical:", humanize.naturalsize(psutil.virtual_memory().used))
-			print("  swap:", humanize.naturalsize(psutil.swap_memory().used))
-
-			print(f"running {threading.active_count()} threads:")
-			for thread in threading.enumerate():
-				print("  " + thread.name)
+			#print_debug_stats()
 
 	def on_worker_failure(self, worker_id):
 		# log?
