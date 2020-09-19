@@ -62,8 +62,8 @@ class Objective:
 def _optimize(config, measures, topics, basepath):
 	import optuna
 
-	study = optuna.create_study(direction="maximize")
-	# storage="sqlite:///example.db", study_name="my_study"
+	study_args = config["study"]
+	study = optuna.create_study(direction="maximize", **study_args)
 
 	with open(basepath / "evaluation_core.csv", "w") as f:
 		objective = Objective(measures, topics, f)

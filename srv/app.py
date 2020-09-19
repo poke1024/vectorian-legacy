@@ -1,6 +1,7 @@
 import cpp as vcore
 import json
 import time
+import spacy
 
 import traceback
 import sys
@@ -13,6 +14,22 @@ import logging
 from datetime import datetime
 
 from pathlib import Path
+
+
+import concurrent.futures
+old_ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor
+def MyThreadPoolExecutor(*args, **kwargs):
+	print("creating ThreadPoolExecutor!")
+	traceback.print_stack()
+	return old_ThreadPoolExecutor(*args, **kwargs)
+concurrent.futures.ThreadPoolExecutor = MyThreadPoolExecutor
+
+
+import asyncio
+asyncio.get_event_loop().set_default_executor(
+	concurrent.futures.ThreadPoolExecutor(
+		max_workers=2,
+		thread_name_prefix='asyncio'))
 
 
 if int(os.environ.get('VERBOSE_VECTORIAN', 0)) != 0:
@@ -270,12 +287,14 @@ class BatchJob(Abacus):
 			self._app.documents)
 
 	def on_aborted(self):
+		self.stop()
 		super().on_aborted()
 		self._query = None
 		print("BatchJob.aborted.", flush=True)
 		self._on_finish(None)
 
 	def on_finished(self):
+		self.stop()
 		super().on_finished()
 		self._query = None
 		self._on_finish(self._set)
@@ -349,7 +368,6 @@ class App:
 		self._vocab = vocab
 
 		print("loading spacy... ", flush=True, end="")
-		import spacy
 		self._nlp = spacy.load("en_core_web_lg")
 		data.corpus.configure_nlp(self._nlp)
 		print("done.", flush=True)

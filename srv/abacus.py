@@ -5,9 +5,11 @@ import sys
 import platform
 import logging
 import multiprocessing
+import psutil
+import threading
+import humanize
 
-
-cpu_load_limit = 1  # cpu load we aim for.
+cpu_load_limit = 0.8  # cpu load we aim for.
 
 
 class Batch(pykka.ThreadingActor):
@@ -96,20 +98,8 @@ class Abacus(pykka.ThreadingActor):
 	def on_finished(self):
 		self.batch = None
 
-		# must not stop here, otherwise self._delegate_proxy.on_ws_receive
-		# in SocketHandler will not call anything.
-
-		#if platform.system() != 'Darwin':
-		#	self.stop()
-
 	def on_aborted(self):
 		self.batch = None
-
-		# must not stop here, otherwise self._delegate_proxy.on_ws_receive
-		# in SocketHandler will not call anything.
-
-		#if platform.system() != 'Darwin':
-		#	self.stop()
 
 
 class Worker(pykka.ThreadingActor):
@@ -207,6 +197,14 @@ class Dispatch(pykka.ThreadingActor):
 			del self._n_tasks[id(batch)]
 			batch.on_finished()
 			batch.stop()
+
+			print("memory:")
+			print("  physical:", humanize.naturalsize(psutil.virtual_memory().used))
+			print("  swap:", humanize.naturalsize(psutil.swap_memory().used))
+
+			print(f"running {threading.active_count()} threads:")
+			for thread in threading.enumerate():
+				print("  " + thread.name)
 
 	def on_worker_failure(self, worker_id):
 		# log?
