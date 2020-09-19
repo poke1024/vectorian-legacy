@@ -41,6 +41,12 @@ class Measurable:
 		assert n <= len(self._recommended)
 		return sum(self._rel(i) / math.log2(i + 1) for i in range(1, n + 1))
 
+	def normalized_discounted_cumulative_gain(self, n):
+		x = self.discounted_cumulative_gain(n)
+		R = len(self._relevant)
+		best = sum(1 / math.log2(i + 1) for i in range(1, R + 1))
+		return x / best
+
 	def r_precision(self):
 		R = len(self._relevant)
 		return self._cum_rel_data[R - 1] / float(R)

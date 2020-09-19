@@ -44,7 +44,8 @@ class Measures:
 	def names(self):
 		short_names = dict(
 			average_precision='ap',
-			discounted_cumulative_gain='dcg')
+			discounted_cumulative_gain='dcg',
+			normalized_discounted_cumulative_gain='ndcg')
 
 		names = []
 		for m in self._measures:
