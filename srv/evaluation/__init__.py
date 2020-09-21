@@ -23,7 +23,7 @@ class Objective:
 		# FIXME percentiles
 
 		ignore_determiners = trial.suggest_categorical(
-			'bidirectional', ['false', 'true']) == 'true'
+			'ignore_determiners', ['false', 'true']) == 'true'
 		mix_fasttext_wn2vec = trial.suggest_uniform(
 			'mix_fasttext_wn2vec', 0.0, 1.0)
 		bidirectional = trial.suggest_categorical(

@@ -489,17 +489,24 @@ class FastSentenceScores {
 private:
 	const FastMetricRef m_metric;
 	const Token * const s_tokens;
+	const int32_t _s_len;
 	const Token * const t_tokens;
 
 public:
 	inline FastSentenceScores(
 		const FastMetricRef &metric,
 		const Token * const s_tokens,
+		const int32_t s_len,
 		const Token * const t_tokens) :
 
 		m_metric(metric),
 		s_tokens(s_tokens),
+		_s_len(s_len),
 		t_tokens(t_tokens) {
+	}
+
+	inline int32_t s_len() const {
+	    return _s_len;
 	}
 
 	inline float similarity(int i, int j) const {
@@ -632,24 +639,22 @@ public:
 typedef std::shared_ptr<ElmoMetric> ElmoMetricRef;
 
 class FastScores {
-public:
 	const QueryRef &m_query;
 	const DocumentRef &m_document;
 	const FastMetricRef m_metric;
 
+	mutable std::vector<Token> m_filtered;
+
+public:
 	FastScores(
 		const QueryRef &p_query,
 		const DocumentRef &p_document,
-		const FastMetricRef &p_metric) :
+		const FastMetricRef &p_metric);
 
-		m_query(p_query),
-		m_document(p_document),
-		m_metric(p_metric) {
-	}
-
-	inline FastSentenceScores operator()(
+	inline FastSentenceScores create_sentence_scores(
 		size_t p_s_offset,
-		size_t p_s_len) const;
+		size_t p_s_len,
+		int p_pos_filter) const;
 
 	inline bool good() const {
 		return true;
@@ -674,6 +679,11 @@ public:
 		t_embeddings(t_embeddings) {
 	}
 
+	inline int s_len() const {
+	    PPK_ASSERT(false);
+	    return 0;
+	}
+
 	inline float similarity(int i, int j) const {
 		return s_embeddings.row(i).dot(t_embeddings.raw.row(j));
 	}
@@ -681,7 +691,6 @@ public:
 	inline float weight(int i, int j) const {
 		return 1.0f;
 	}
-
 
 	inline float operator()(int i, int j) const {
 		return similarity(i, j);
@@ -701,11 +710,13 @@ public:
 		const ElmoMetricRef &p_metric,
 		const int p_sample);
 
-	inline ElmoSentenceScores operator()(
+	inline ElmoSentenceScores create_sentence_scores(
 		size_t p_s_offset,
-		size_t p_s_len) const {
+		size_t p_s_len,
+		int p_pos_filter) const {
 
 		PPK_ASSERT(m_good);
+		PPK_ASSERT(p_pos_filter < 0);
 
 		return ElmoSentenceScores(
 			m_document_matrix->view(p_s_offset, p_s_len),
@@ -1164,12 +1175,14 @@ class Vocabulary {
 	StringLexicon<int8_t> m_pos;
 	StringLexicon<int8_t> m_tag;
 
+	int m_det_pos;
+
 public:
 	// basically a mapping from token -> int
 
 	std::mutex m_mutex;
 
-	Vocabulary() {
+	Vocabulary() : m_det_pos(-1) {
 	}
 
 	int add_embedding(EmbeddingRef p_embedding) {
@@ -1182,7 +1195,15 @@ public:
 	}
 
 	inline int unsafe_add_pos(const std::string &p_name) {
-		return m_pos.add(p_name);
+		const int i = m_pos.add(p_name);
+	    if (p_name == "DET") {
+	        m_det_pos = i;
+	    }
+	    return i;
+	}
+
+	inline int det_pos() const {
+	    return m_det_pos;
 	}
 
 	inline int unsafe_add_tag(const std::string &p_name) {
@@ -2059,6 +2080,7 @@ class Query : public std::enable_shared_from_this<Query> {
 	int m_mismatch_length_penalty;
 	float m_submatch_weight;
 	bool m_bidirectional;
+	bool m_ignore_determiners;
 	bool m_aborted;
 
 	/*void init_boost(const py::kwargs &p_kwargs) {
@@ -2097,20 +2119,24 @@ public:
 				1.0f;
 
 		const float similarity_threshold = (p_kwargs && p_kwargs.contains("similarity_threshold")) ?
-				p_kwargs["similarity_threshold"].cast<float>() :
-				0.0f;
+            p_kwargs["similarity_threshold"].cast<float>() :
+            0.0f;
 
 		const float similarity_falloff = (p_kwargs && p_kwargs.contains("similarity_falloff")) ?
-				p_kwargs["similarity_falloff"].cast<float>() :
-				1.0f;
+            p_kwargs["similarity_falloff"].cast<float>() :
+            1.0f;
 
 		m_submatch_weight = (p_kwargs && p_kwargs.contains("submatch_weight")) ?
-				p_kwargs["submatch_weight"].cast<float>() :
-				0.0f;
+            p_kwargs["submatch_weight"].cast<float>() :
+            0.0f;
 
 		m_bidirectional = (p_kwargs && p_kwargs.contains("bidirectional")) ?
-				p_kwargs["bidirectional"].cast<bool>() :
-				false;
+            p_kwargs["bidirectional"].cast<bool>() :
+            false;
+
+		m_ignore_determiners = (p_kwargs && p_kwargs.contains("ignore_determiners")) ?
+            p_kwargs["ignore_determiners"].cast<bool>() :
+            false;
 
 		const float idf_weight = (p_kwargs && p_kwargs.contains("idf_weight")) ?
 				p_kwargs["idf_weight"].cast<float>() :
@@ -2269,6 +2295,10 @@ public:
 		return m_bidirectional;
 	}
 
+	inline bool ignore_determiners() const {
+	    return m_ignore_determiners;
+	}
+
 	ResultSetRef match(
 		const DocumentRef &p_document);
 
@@ -2379,6 +2409,8 @@ private:
 	float m_score; // overall score
 	std::vector<TokenScore> m_scores;
 
+	int _pos_filter() const;
+
 public:
 	Match(
 		const QueryRef &p_query,
@@ -2427,33 +2459,7 @@ public:
 	using is_better = compare_by_score<std::less>;
 
 	template<typename Scores>
-	void compute_scores(const Scores &p_scores, int p_len_s) {
-		const auto &match = m_digest.match;
-
-		if (m_scores.empty() && !match.empty()) {
-			const auto token_at = sentence().token_at;
-
-			int end = 0;
-			for (auto m : match) {
-				end = std::max(end, int(m));
-			}
-
-			const auto sentence_scores = p_scores(token_at, p_len_s);
-			m_scores.reserve(match.size());
-
-			int i = 0;
-			for (auto m : match) {
-				if (m >= 0) {
-					m_scores.push_back(TokenScore{
-						sentence_scores.similarity(m, i),
-						sentence_scores.weight(m, i)});
-				} else {
-					m_scores.push_back(TokenScore{0.0f, 0.0f});
-				}
-				i++;
-			}
-		}
-	}
+	void compute_scores(const Scores &p_scores, int p_len_s);
 
 	void print_scores() const {
 		for (auto s : m_scores) {
@@ -2609,6 +2615,42 @@ struct MatchDigest::compare {
 	}
 };
 
+inline int Match::_pos_filter() const {
+    return m_query->ignore_determiners() ?
+        document()->vocabulary()->det_pos() : -1;
+}
+
+template<typename Scores>
+void Match::compute_scores(const Scores &p_scores, int p_len_s) {
+    const auto &match = m_digest.match;
+
+    if (m_scores.empty() && !match.empty()) {
+        const auto token_at = sentence().token_at;
+
+        int end = 0;
+        for (auto m : match) {
+            end = std::max(end, int(m));
+        }
+
+        const auto sentence_scores = p_scores.create_sentence_scores(
+            token_at, p_len_s, _pos_filter());
+        m_scores.reserve(match.size());
+
+        int i = 0;
+        for (auto m : match) {
+            if (m >= 0) {
+                m_scores.push_back(TokenScore{
+                    sentence_scores.similarity(m, i),
+                    sentence_scores.weight(m, i)});
+            } else {
+                m_scores.push_back(TokenScore{0.0f, 0.0f});
+            }
+            i++;
+        }
+    }
+}
+
+
 template<template<typename> typename C>
 struct Match::compare_by_score {
 	inline bool operator()(
@@ -2717,12 +2759,31 @@ py::list Match::regions() const {
 	py::list regions;
 	const int32_t n = static_cast<int32_t>(match.size());
 
+	const int pos_filter = _pos_filter();
+	std::vector<int16_t> index_map;
+	if (pos_filter >= 0) {
+		int16_t k = 0;
+		index_map.resize(sentence().n_tokens);
+		for (int32_t i = 0; i < sentence().n_tokens; i++) {
+			index_map[k] = i;
+			if (s_tokens.at(token_at + i).pos != pos_filter) {
+				k++;
+			}
+		}
+	}
+
 	for (int32_t i = 0; i < n; i++) {
-		if (match[i] < 0) {
+	    int match_at_i = match[i];
+
+		if (match_at_i < 0) {
 			continue;
 		}
 
-		const auto &s = s_tokens.at(token_at + match[i]);
+		if (!index_map.empty()) {
+			match_at_i = index_map[match_at_i];
+		}
+
+		const auto &s = s_tokens.at(token_at + match_at_i);
 		const auto &t = t_tokens.at(i);
 
 		const int32_t idx0 = s_tokens.at(last_anchor).idx;
@@ -2733,7 +2794,7 @@ py::list Match::regions() const {
 			float p;
 
 			if (last_matched) {
-				p = (*mismatch_penalty.get())(token_at + match[i] - last_anchor);
+				p = (*mismatch_penalty.get())(token_at + match_at_i - last_anchor);
 			} else {
 				p = 0.0f;
 			}
@@ -2754,7 +2815,7 @@ py::list Match::regions() const {
 			s_text.substr(s.idx, s.len),
 			t_text.substr(t.idx, t.len),
 			document()->vocabulary(),
-			TokenRef{s_tokens_ref, token_at + match[i]},
+			TokenRef{s_tokens_ref, token_at + match_at_i},
 			TokenRef{t_tokens_ref, i},
 			m_metric->origin(s.id, i)
 		));
@@ -2766,7 +2827,7 @@ py::list Match::regions() const {
 		}
 #endif
 
-		last_anchor = token_at + match[i] + 1;
+		last_anchor = token_at + match_at_i + 1;
 		last_matched = true;
 	}
 
@@ -2952,15 +3013,15 @@ protected:
 	Aligner<int16_t, float> m_aligner;
 
 	template<typename SCORES, typename COMBINE, typename REVERSE>
-	MatchRef optimal_match(
+	inline MatchRef optimal_match(
 		const int32_t sentence_id,
 		const SCORES &scores,
 		const int16_t scores_variant_id,
 		const COMBINE &combine,
-		const int len_s,
 		const float p_min_score,
 		const REVERSE &reverse) {
 
+		const int len_s = scores.s_len();
 		const int len_t = m_query->len();
 
 		if (len_t < 1 || len_s < 1) {
@@ -3027,8 +3088,12 @@ class ReversedScores {
 	const int m_len_t;
 
 public:
-	ReversedScores(const Scores &scores, int len_s, int len_t) :
-		m_scores(scores), m_len_s(len_s), m_len_t(len_t) {
+	inline ReversedScores(const Scores &scores, int len_t) :
+		m_scores(scores), m_len_s(scores.s_len()), m_len_t(len_t) {
+	}
+
+	inline int s_len() const {
+	    return m_len_s;
 	}
 
 	inline float operator()(int u, int v) const {
@@ -3086,6 +3151,9 @@ public:
 			return;
 		}
 
+		const int pos_filter = m_query->ignore_determiners() ?
+		    m_document->vocabulary()->det_pos() : -1;
+
 		const auto &sentences = m_document->sentences();
 		const size_t n_sentences = sentences.size();
 		//const size_t max_len_s = m_document->max_len_s();
@@ -3107,24 +3175,24 @@ public:
 
 			for (const auto &scores : good_scores) {
 
-					const auto sentence_scores = scores(token_at, len_s);
+					const auto sentence_scores = scores.create_sentence_scores(
+					    token_at, len_s, pos_filter);
 
 					MatchRef m = optimal_match(
 						sentence_id,
 						sentence_scores,
 						scores.variant(),
 						m_combine,
-						len_s,
 						p_matches->worst_score(),
 						[] (std::vector<int16_t> &match, int len_s) {});
 
 					if (m_query->bidirectional()) {
 						MatchRef m_reverse = optimal_match(
 							sentence_id,
-							ReversedScores(sentence_scores, len_s, m_query->len()),
+							ReversedScores(
+    							sentence_scores, m_query->len()),
 							scores.variant(),
 							m_combine,
-							len_s,
 							p_matches->worst_score(),
 							reverse_alignment);
 
@@ -3288,17 +3356,51 @@ MatcherRef FastMetric::create_matcher(
 	return ::create_matcher(p_query, p_document, self, scores);
 }
 
-inline FastSentenceScores FastScores::operator()(
-	size_t p_s_offset,
-	size_t /*p_s_len*/) const {
+inline FastScores::FastScores(
+    const QueryRef &p_query,
+    const DocumentRef &p_document,
+    const FastMetricRef &p_metric) :
+
+    m_query(p_query),
+    m_document(p_document),
+    m_metric(p_metric) {
+
+    m_filtered.resize(p_document->max_len_s());
+}
+
+inline FastSentenceScores FastScores::create_sentence_scores(
+	const size_t p_s_offset,
+	const size_t p_s_len,
+	const int p_pos_filter) const {
 
 	const Token *s_tokens = m_document->tokens()->data();
 	const Token *t_tokens = m_query->tokens()->data();
 
-	return FastSentenceScores(
-		m_metric,
-		s_tokens + p_s_offset,
-		t_tokens);
+	if (p_pos_filter > -1) {
+	    const Token *s = s_tokens + p_s_offset;
+	    Token *new_s = m_filtered.data();
+        PPK_ASSERT(p_s_len <= m_filtered.size());
+
+	    size_t new_s_len = 0;
+        for (size_t i = 0; i < p_s_len; i++) {
+            if (s[i].pos != p_pos_filter) {
+                new_s[new_s_len++] = s[i];
+            }
+        }
+
+        return FastSentenceScores(
+            m_metric,
+            new_s,
+            new_s_len,
+            t_tokens);
+	}
+    else {
+        return FastSentenceScores(
+            m_metric,
+            s_tokens + p_s_offset,
+            p_s_len,
+            t_tokens);
+    }
 }
 
 MetricRef ElmoEmbedding::create_metric(

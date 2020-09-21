@@ -213,6 +213,7 @@ class Session(Abacus):
 			submatch_weight=data['submatch_weight'],
 			idf_weight=float(data['idf_weight']) / 100,
 			bidirectional=data['bidirectional'],
+			ignore_determiners=data['ignore_determiners'],
 			similarity_threshold=(1 + float(data['similarity_threshold'])) / 100,
 			similarity_falloff=float(data['similarity_falloff']),
 			similarity_measure=data['similarity_measure'])
@@ -323,9 +324,6 @@ class Topic(evaluation.Topic):
 	def search(self, parameters, reply):
 		options = dict(parameters.items())
 
-		ignore_determiners = options['ignore_determiners']
-		del options['ignore_determiners']
-
 		options['metrics'] = [tuple(m) for m in options['metrics']]
 
 		options['pos_weights'] = _batanovic_weighting(options['pos_weighting'])
@@ -336,7 +334,7 @@ class Topic(evaluation.Topic):
 			self._query_text,
 			self._app.query_tokens(
 				self._query_text,
-				ignore_determiners).get_parquet_table(),
+				options['ignore_determiners']).get_parquet_table(),
 			cost_combine_function='sum',
 			**options)
 
