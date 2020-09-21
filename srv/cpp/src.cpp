@@ -1894,6 +1894,8 @@ public:
 				m_penalties[i] = 0.0f;
 			}
 		} else {
+			// this cumbersome formulation is equivalent to (1 - 2^-(i / cutoff))
+
 			const float scale = cutoff / 0.693147;
 
 			for (int i = 0; i < max_n; i++) {
