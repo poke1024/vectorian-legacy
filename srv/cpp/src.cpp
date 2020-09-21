@@ -850,7 +850,7 @@ public:
 				}
 
 				if (prob_w > 0.0f) {
-					float w = prob_w * p_a_idf->idf->at(i);
+					float w =  std::pow(p_a_idf->idf->at(i), prob_w);
 					max_w = std::max(w, max_w);
 					r_matrix.row(i) *= w;
 				}
@@ -858,7 +858,7 @@ public:
 			} else { // token in Vocabulary, but not in Embedding
 
 				for (size_t j = 0; j < m; j++) {
-						r_matrix(i, j) = 0.0f;
+					r_matrix(i, j) = 0.0f;
 				}
 			}
 		}
