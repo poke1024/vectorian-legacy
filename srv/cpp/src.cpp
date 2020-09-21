@@ -530,10 +530,10 @@ public:
 		const Token &s = s_tokens[i];
 		const Token &t = t_tokens[j];
 
-		// weight based on universal POS tag.
+		// weight based on PennTree POS tag.
 		float weight = m_metric->pos_weight(t.tag);
 
-		// difference based on PennTree POS tag. do not apply
+		// difference based on universal POS tag. do not apply
 		// if the token is the same, but only POS is different,
 		// since often this will an error in the POS tagging.
 		if (s.pos != t.pos && s.id != t.id) {
