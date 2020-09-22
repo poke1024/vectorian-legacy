@@ -437,8 +437,8 @@ public:
 		m_a(std::dynamic_pointer_cast<FastMetric>(p_a)),
 		m_b(std::dynamic_pointer_cast<FastMetric>(p_b)) {
 
-		const float t2 = 2.0f * t;
-		const float k = 1.0f + std::abs(t2 - 1.0f);
+		const float t2 = 2.0f * t; // [0, 2] for linear interpolation
+		const float k = 1.0f + std::abs(t2 - 1.0f); // [1, 2] for normalization
 
 		const MatrixXf arg_a = m_a->similarity() * ((2.0f - t2) / k);
 		m_similarity = arg_a.cwiseMax(m_b->similarity() * (t2 / k));
