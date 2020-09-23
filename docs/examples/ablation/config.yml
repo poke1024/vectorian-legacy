@@ -1,6 +1,17 @@
 ---
-strategy: optuna
-n_trials: 50
+strategy: ablation
+baseline:
+  ignore_determiners: false
+  mix_fasttext_wn2vec: 1.0
+  similarity_measure: cosine
+  idf_weight: 0.6
+  similarity_falloff: 0.93
+  pos_weighting: 0.46
+  pos_mismatch_penalty: 0.77
+  similarity_threshold: 0.73
+  mismatch_length_penalty: 1
+  submatch_weight: 0.24
+  bidirectional: false
 parameters:
   - name: ignore_determiners
     type: boolean

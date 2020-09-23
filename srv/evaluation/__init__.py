@@ -14,40 +14,21 @@ from .evaluator import Evaluator, BlockingEvaluator
 from abacus import print_debug_stats
 
 
-class Objective:
-	def __init__(self, measures, topics, outfile):
+class Computer:
+	def __init__(self, measures, topics):
 		self._evaluator = BlockingEvaluator.start(measures, topics)
-		self._outfile = outfile
 
-	def __call__(self, trial):
-		# FIXME percentiles
+	def __call__(self, args):
+		args = args.copy()
 
-		ignore_determiners = trial.suggest_categorical(
-			'ignore_determiners', ['false', 'true']) == 'true'
-		mix_fasttext_wn2vec = trial.suggest_uniform(
-			'mix_fasttext_wn2vec', 0.0, 1.0)
-		bidirectional = trial.suggest_categorical(
-			'bidirectional', ['false', 'true']) == 'true'
-
-		params = dict(
-			ignore_determiners=ignore_determiners,
-			metrics=[["fasttext", "wn2vec", mix_fasttext_wn2vec]],
-			pos_weighting=trial.suggest_uniform('pos_weighting', 0.0, 1.0),
-			pos_mismatch_penalty=trial.suggest_uniform('pos_mismatch_penalty', 0.0, 1.0),
-			mismatch_length_penalty=trial.suggest_int('mismatch_length_penalty', -1, 10),
-			submatch_weight=trial.suggest_uniform('submatch_weight', 0, 5),
-			idf_weight=trial.suggest_uniform('idf_weight', 0.0, 1.0),
-			bidirectional=bidirectional,
-			similarity_threshold=trial.suggest_uniform('similarity_threshold', 0.0, 1.0),
-			similarity_falloff=trial.suggest_uniform('similarity_falloff', 0.0, 1.0),
-			similarity_measure=trial.suggest_categorical(
-				'similarity_measure', ['cosine', 'nicdm', "apsynp"]))
+		args["metrics"] = [["fasttext", "wn2vec", args["mix_fasttext_wn2vec"]]]
+		del args["mix_fasttext_wn2vec"]
 
 		result = self._evaluator.ask(
 			pykka.messages.ProxyCall(
 				attr_path=['evaluate'],
 				args=[],
-				kwargs=params
+				kwargs=args
 			)
 		)
 
@@ -60,21 +41,59 @@ class Objective:
 
 		score = np.average(scores)
 
+		return score
+
+
+class Objective:
+	def __init__(self, measures, topics, params, outfile):
+		self._computer = Computer(measures, topics)
+		self._params = params
+		self._outfile = outfile
+
+	def __call__(self, trial):
+		args = dict()
+		for param in self._params:
+			name = param["name"]
+			t = param["type"]
+			if t == "boolean":
+				args[name] = trial.suggest_categorical(
+					name, ['false', 'true']) == 'true'
+			elif t == "categorical":
+				args[name] = trial.suggest_categorical(
+					name, param["choices"])
+			elif t == "uniform":
+				args[name] = trial.suggest_uniform(
+					name, param["low"], param["high"])
+			elif t == "int":
+				args[name] = trial.suggest_int(
+					name, param["low"], param["high"])
+			else:
+				raise ValueError("illegal parameter type " + t)
+
+		score = self._computer(args)
+
 		self._outfile.write("%d;trial;%f;%s\n" % (
-			trial.number, score, str(params)))
+			trial.number, score, str(args)))
 		self._outfile.flush()
 
 		return score
 
 
-def _optimize(config, measures, topics, basepath):
+def _optuna_optimize(config, measures, topics, basepath):
 	import optuna
 
 	study_args = config["study"]
+
+	if "sampler" in config:
+		sampler_data = config["sampler"]
+		sampler_type = sampler_data["type"]  # e.g. TPESampler, RandomSampler
+		study_args["sampler"] = getattr(optuna.samplers, sampler_type)(
+			**sampler_data.get("args", dict()))
+
 	study = optuna.create_study(direction="maximize", **study_args)
 
 	with open(basepath / "evaluation_core.csv", "w") as f:
-		objective = Objective(measures, topics, f)
+		objective = Objective(measures, topics, config["parameters"], f)
 
 		study.optimize(
 			objective, n_trials=int(config["n_trials"]))
@@ -89,6 +108,49 @@ def _optimize(config, measures, topics, basepath):
 	print("optuna done.", flush=True)
 
 
+def gen_ablations(param):
+	name = param["name"]
+	t = param["type"]
+	if t == "boolean":
+		yield name, False
+		yield name, True
+	elif t == "categorical":
+		for c in param["choices"]:
+			yield name, c
+	elif t == "uniform":
+		for x in np.linspace(param["low"], param["high"], 101):
+			yield name, x
+	elif t == "int":
+		for x in range(param["low"], param["high"] + 1):
+			yield name, x
+	else:
+		raise ValueError("illegal parameter type " + t)
+
+
+def _ablation_study(config, measures, topics, basepath):
+	computer = Computer(measures, topics)
+
+	with open(basepath / "ablation.csv", "w") as f:
+
+		baseline_args = config["baseline"]
+		baseline_score = computer(baseline_args)
+		f.write(f"baseline;{baseline_score}\n")
+		f.flush()
+
+		for param in config["parameters"]:  # ablation on param
+			for name, value in gen_ablations(param):
+				if baseline_args[name] == value:
+					f.write(f"ablation;{name};{value};{baseline_score}\n")
+				else:
+					args = baseline_args.copy()
+					args[name] = value
+					score = computer(args)
+					f.write(f"ablation;{name};{value};{score}\n")
+				f.flush()
+
+	print("ablation done.")
+
+
 def evaluate(config, measures, topics, basepath, on_done=None):
 	# set this to logging.DEBUG to debug strange hangs/aborts.
 	logging.getLogger('pykka').setLevel(logging.ERROR)
@@ -96,9 +158,14 @@ def evaluate(config, measures, topics, basepath, on_done=None):
 	strategy = config["strategy"]
 	if strategy == "optuna":
 		t = threading.Thread(
-			target=_optimize, args=(config, measures, topics, basepath))
+			target=_optuna_optimize, args=(config, measures, topics, basepath))
 		t.start()
+		return None
 
+	elif strategy == "ablation":
+		t = threading.Thread(
+			target=_ablation_study, args=(config, measures, topics, basepath))
+		t.start()
 		return None
 
 	elif strategy == "grid":
@@ -320,16 +387,3 @@ class Evaluation:
 			return self._df_to_bulma_table(df, columns)
 		else:
 			return df
-
-
-
-
-
-# from Jupyter:
-#
-# import sys
-# sys.path.append("/path/to/vectorian/srv")
-#
-# from evaluation import Evaluation
-# e = Evaluation.read("/path/to/vectorian/misc/eval-demo")
-# e.optimal()

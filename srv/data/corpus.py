@@ -5,12 +5,14 @@ import pandas
 import os
 import re
 import json
+import math
 import cpp as vcore
 import hashlib
 import concurrent
 
 from functools import partial
 from tqdm import tqdm
+from wordfreq import word_frequency
 
 
 def normalize_dashes(s):
@@ -77,7 +79,12 @@ class TokenTable:
 				self._token_len.append(len(token.text.encode('utf8')))
 				self._token_pos.append(pos)
 				self._token_tag.append(tag)
-				self._token_prob.append(token.prob)
+
+				# work around spaCy .prob bug
+				#self._token_prob.append(token.prob)
+				prob = math.log(word_frequency(
+					token.orth_, 'en', minimum=math.exp(-30)))
+				self._token_prob.append(prob)
 
 		self._utf8_idx += len(text[last_idx:].encode('utf8'))
 

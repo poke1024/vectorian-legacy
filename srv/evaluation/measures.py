@@ -28,6 +28,15 @@ class Measurable:
 	def precision_at_k(self,  k):
 		return self._cum_rel_data[k - 1] / k
 
+	def roc(self, cutoff):
+		# roc: TP/(TP + FN) and FP/(FP + TN)
+		tp = self._cum_rel_data[cutoff - 1]
+		fp = cutoff - tp
+		#fp = 0
+
+		n_total_rel = len(self._relevant)  # tp + fn
+		return numpy.array([fp / (fp + tn), tp / n_total_rel])
+
 	def average_precision(self, n):  # average precision
 		if len(self._relevant) < 1:
 			# cannot compute average precision without any relevant items

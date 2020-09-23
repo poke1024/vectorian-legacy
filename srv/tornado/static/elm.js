@@ -5160,7 +5160,7 @@ var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $author$project$Vectorian$init = _Utils_Tuple2(
 	{
 		connected: true,
-		features: {apsynp: true, idf: false, maximum: false, nicdm: true, quantiles: false},
+		features: {apsynp: true, idf: true, maximum: false, nicdm: true, quantiles: false},
 		query: '',
 		querySettings: $author$project$Vectorian$defaultQuerySettings,
 		results: _List_Nil,
@@ -11426,7 +11426,7 @@ var $author$project$Vectorian$similarityMeasureUI = F2(
 							_List_Nil,
 							_List_fromArray(
 								[
-									$elm$html$Html$text('Similarity Measure')
+									$elm$html$Html$text('Embedding Similarity Measure')
 								]))
 						])),
 					A2(
@@ -11852,7 +11852,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																		_List_Nil,
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text('Embedding')
+																				$elm$html$Html$text('Embedding Interpolation')
 																			]))
 																	])),
 																A2(
@@ -11867,7 +11867,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text('Fasttext')
+																				$elm$html$Html$text('fasttext')
 																			])),
 																		A2(
 																		$elm$html$Html$span,
@@ -11875,7 +11875,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledRight]),
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text('WordNet')
+																				$elm$html$Html$text('wnet2vec')
 																			])),
 																		A2(
 																		$author$project$BulmaExtensions$slider,
@@ -11992,7 +11992,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text('Sub Match Weight')
+																				$elm$html$Html$text('Submatch Boosting')
 																			])),
 																		A2(
 																		$elm$html$Html$span,
@@ -12063,7 +12063,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																								]),
 																							$author$project$Vectorian$checked(model.querySettings.ignoreDeterminers)),
 																						'id-ignore-determiners',
-																						'exclude DET')
+																						'Exclude Determiners')
 																					]))
 																			]))
 																	])),
@@ -12084,7 +12084,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																					[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
 																				_List_fromArray(
 																					[
-																						$elm$html$Html$text('Universal POS Mismatch Penalty')
+																						$elm$html$Html$text('POS Mismatch Penalty')
 																					])),
 																				A2(
 																				$elm$html$Html$span,
@@ -12122,7 +12122,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																					[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
 																				_List_fromArray(
 																					[
-																						$elm$html$Html$text('POST STSS Weighting')
+																						$elm$html$Html$text('Semantic POS Weighting')
 																					])),
 																				A2(
 																				$elm$html$Html$span,
@@ -12167,7 +12167,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																		_List_Nil,
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text('IDF')
+																				$elm$html$Html$text('Frequency')
 																			]))
 																	])),
 																A2(
@@ -12181,7 +12181,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 																			[$surprisetalk$elm_bulma$Bulma$Modifiers$pulledLeft]),
 																		_List_fromArray(
 																			[
-																				$elm$html$Html$text('IDF Weight')
+																				$elm$html$Html$text('Inverse Frequency Scaling')
 																			])),
 																		A2(
 																		$elm$html$Html$span,

@@ -829,15 +829,12 @@ public:
 		const WordVectors &p_embeddings,
 		const TokenIdArray &p_a,
 		const TokenIdArray &p_b,
-		const WeightedIDF *p_a_idf,
+		const WeightedIDF *p_idf,
 		MatrixXf &r_matrix) const {
 
 		const size_t n = p_a.rows();
 		const size_t m = p_b.rows();
 		r_matrix.resize(n, m);
-
-		const float prob_w = p_a_idf ? p_a_idf->w : 0.0f;
-		float max_w = 0.0f;
 
 		for (size_t i = 0; i < n; i++) { // e.g. for each token in Vocabulary
 			const token_t s = p_a[i];
@@ -849,12 +846,6 @@ public:
 					r_matrix(i, j) = (t >= 0) ? m_distance(p_embeddings, s, t) : 0.0f;
 				}
 
-				if (prob_w > 0.0f) {
-					float w =  std::pow(p_a_idf->idf->at(i), prob_w);
-					max_w = std::max(w, max_w);
-					r_matrix.row(i) *= w;
-				}
-
 			} else { // token in Vocabulary, but not in Embedding
 
 				for (size_t j = 0; j < m; j++) {
@@ -863,8 +854,37 @@ public:
 			}
 		}
 
-		if (max_w > 0.0f) {
-			r_matrix /= max_w;
+		const float prob_w = p_idf ? p_idf->w : 0.0f;
+		//std::cout << "prob_w is " << prob_w << "\n";
+
+		if (prob_w > 0.0f) {
+			float max_w_i = 1, max_w_j = 1;
+
+			/*if (i < 10) {
+				std::cout << "idf " << i << "=" << p_idf->idf->at(i) << "\n";
+			}*/
+
+			PPK_ASSERT(p_idf->idf->size() == n);
+			PPK_ASSERT(n > m);
+
+			for (size_t i = 0; i < n; i++) {
+				const float w = std::pow(
+					p_idf->idf->at(i), prob_w);
+				max_w_i = std::max(w, max_w_i);
+				r_matrix.row(i) *= w;
+			}
+
+			/*for (size_t j = 0; j < m; j++) {
+				const token_t t = p_b[j];
+				if (t >= 0) {
+					const float w = std::pow(
+						p_idf->idf->at(t), prob_w);
+					max_w_j = std::max(w, max_w_j);
+					r_matrix.col(j) *= w;
+				}
+			}*/
+
+			r_matrix /= max_w_i * max_w_j;
 		}
 	}
 
@@ -2114,6 +2134,32 @@ public:
 			p_vocab, DO_NOT_MODIFY_VOCABULARY, p_text, table);
 
 		//init_boost(p_kwargs);
+
+		static const std::set<std::string> valid_options = {
+			"pos_mismatch_penalty",
+			"pos_weights",
+			"similarity_falloff",
+			"similarity_threshold",
+			"metrics",
+			"similarity_measure",
+			"submatch_weight",
+			"bidirectional",
+			"ignore_determiners",
+			"idf_weight",
+			"mismatch_length_penalty",
+			"cost_combine_function"
+		};
+
+		if (p_kwargs) {
+			for (auto item : p_kwargs) {
+				const std::string name = py::str(item.first);
+				if (valid_options.find(name) == valid_options.end()) {
+					std::ostringstream err;
+					err << "illegal option " << name;
+					throw std::runtime_error(err.str());
+				}
+			}
+		}
 
 		const float pos_mismatch_penalty =
 			(p_kwargs && p_kwargs.contains("pos_mismatch_penalty")) ?

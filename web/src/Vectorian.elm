@@ -166,7 +166,7 @@ init : (Model, Cmd Msg)
 init = ( {
   connected = True,  -- binding js ensures we're connected
   -- at first time of instantation of elm app.
-  features = {nicdm = True, apsynp = True, maximum = False, quantiles = False, idf = False},
+  features = {nicdm = True, apsynp = True, maximum = False, quantiles = False, idf = True},
   query = "",
   querySettings = defaultQuerySettings,
   search = NotSearching,
@@ -584,7 +584,7 @@ similarityMeasureUI settings features =
     [
       cardTitle []
       [
-        text "Similarity Measure"
+        text "Embedding Similarity Measure"
       ]
     ]
     , cardContent []
@@ -677,15 +677,15 @@ searchUI model
                   [
                     cardTitle []
                     [
-                      text "Embedding"
+                      text "Embedding Interpolation"
                     ]
                   ],
                   cardContent ( if model.querySettings.enableElmo then [invisible] else [] )
                   [
                     span [ pulledLeft ]
-                    [ text "Fasttext" ]
+                    [ text "fasttext" ]
                     , span [ pulledRight ]
-                    [ text "WordNet" ]
+                    [ text "wnet2vec" ]
                     , slider
                     [
                       attribute "value" (String.fromFloat model.querySettings.mixEmbedding),
@@ -754,7 +754,7 @@ searchUI model
                     mismatchPenaltyCurve model.querySettings.mismatchLengthPenalty 15,
 
                     div [ pulledLeft ]
-                    [ text "Sub Match Weight" ]
+                    [ text "Submatch Boosting" ]
                     , span [ pulledRight ]
                     [ text ((Round.round 0 model.querySettings.submatchWeight)) ]
                     , intSlider 10
@@ -784,7 +784,7 @@ searchUI model
                           ] ++ checked model.querySettings.ignoreDeterminers
                         )
                         "id-ignore-determiners"
-                        "exclude DET"
+                        "Exclude Determiners"
                       ]
 
                     ]
@@ -794,7 +794,7 @@ searchUI model
                     div ( if model.querySettings.enableElmo then [invisible] else [] ) [
                       span [ pulledLeft ]
                       [
-                        text "Universal POS Mismatch Penalty"
+                        text "POS Mismatch Penalty"
                       ]
                       , span [ pulledRight ]
                       [ text ((Round.round 0 model.querySettings.posMismatch) ++ "%") ]
@@ -807,7 +807,7 @@ searchUI model
                     div [] [
                       span [ pulledLeft ]
                       [
-                        text "POST STSS Weighting"
+                        text "Semantic POS Weighting"
                       ]
                       , span [ pulledRight ]
                       [
@@ -831,12 +831,12 @@ searchUI model
                   [
                     cardTitle []
                     [
-                      text "IDF"
+                      text "Frequency"
                     ]
                   ], cardContent []
                   [
                     div [ pulledLeft ]
-                    [ text "IDF Weight" ]
+                    [ text "Inverse Frequency Scaling" ]
                     , span [ pulledRight ]
                     [ text ((Round.round 0 model.querySettings.idfWeight)) ]
                     , slider
