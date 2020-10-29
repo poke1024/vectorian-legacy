@@ -5138,6 +5138,23 @@ var $elm$core$Task$perform = F2(
 var $elm$browser$Browser$element = _Browser_element;
 var $author$project$Vectorian$NotSearching = {$: 'NotSearching'};
 var $author$project$Server$CombineSum = {$: 'CombineSum'};
+var $author$project$Vectorian$defaultAutomaticQuerySettings = {
+	annotateDebug: false,
+	annotatePOS: false,
+	bidirectional: false,
+	costCombine: $author$project$Server$CombineSum,
+	enableElmo: false,
+	idfWeight: 0,
+	ignoreDeterminers: false,
+	mismatchLengthPenalty: 1,
+	mixEmbedding: 55,
+	posMismatch: 77,
+	posWeighting: 46,
+	similarityFalloff: 0.93,
+	similarityMeasure: {name: 'cosine', quantiles: false},
+	similarityThreshold: 73,
+	submatchWeight: 0.24
+};
 var $author$project$Vectorian$defaultQuerySettings = {
 	annotateDebug: false,
 	annotatePOS: false,
@@ -5159,8 +5176,9 @@ var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $author$project$Vectorian$init = _Utils_Tuple2(
 	{
+		automaticQuerySettings: $author$project$Vectorian$defaultAutomaticQuerySettings,
 		connected: true,
-		features: {apsynp: true, idf: true, maximum: false, nicdm: true, quantiles: false},
+		features: {apsynp: true, automatic: true, idf: true, maximum: false, nicdm: true, quantiles: false},
 		query: '',
 		querySettings: $author$project$Vectorian$defaultQuerySettings,
 		results: _List_Nil,
@@ -5477,7 +5495,10 @@ var $author$project$Vectorian$startSearch = function (model) {
 		_Utils_update(
 			model,
 			{results: _List_Nil, search: $author$project$Vectorian$SearchRequested}),
-		A2($author$project$Server$startSearch, model.query, model.querySettings));
+		A2(
+			$author$project$Server$startSearch,
+			model.query,
+			model.features.automatic ? model.automaticQuerySettings : model.querySettings));
 };
 var $author$project$Vectorian$updateQuerySettings = F2(
 	function (settings, msg) {
@@ -11819,7 +11840,7 @@ var $author$project$Vectorian$searchUI = function (model) {
 										return _List_Nil;
 									}
 								}()),
-								A3(
+								model.features.automatic ? A2($elm$html$Html$div, _List_Nil, _List_Nil) : A3(
 								$surprisetalk$elm_bulma$Bulma$Layout$section,
 								$surprisetalk$elm_bulma$Bulma$Layout$NotSpaced,
 								_List_Nil,

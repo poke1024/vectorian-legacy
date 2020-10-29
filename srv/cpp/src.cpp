@@ -2158,6 +2158,11 @@ public:
 					err << "illegal option " << name;
 					throw std::runtime_error(err.str());
 				}
+#if 0
+				const std::string value = py::str(item.second);
+				std::cout << "received param " << name << ": " <<
+					value << "\n";
+#endif
 			}
 		}
 

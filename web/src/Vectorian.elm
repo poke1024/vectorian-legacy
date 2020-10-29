@@ -111,6 +111,7 @@ serverResultsMessageDecoder =
 
 
 type alias Features = {
+  automatic : Bool,
   nicdm : Bool,
   apsynp : Bool,
   maximum : Bool,
@@ -123,6 +124,7 @@ type alias ServerConnectedMessage = {
 featuresDecoder : Decoder Features
 featuresDecoder =
   Decode.succeed Features
+    |> required "automatic" bool
     |> required "nicdm" bool
     |> required "apsynp" bool
     |> required "maximum" bool
@@ -154,11 +156,30 @@ defaultQuerySettings = {
   annotatePOS = False,
   annotateDebug = False}
 
+defaultAutomaticQuerySettings : QuerySettings
+defaultAutomaticQuerySettings = {
+  ignoreDeterminers = False,
+  posWeighting = 46,
+  posMismatch = 77,
+  mismatchLengthPenalty = 1,
+  submatchWeight = 0.24,
+  idfWeight = 0,
+  bidirectional = False,
+  similarityFalloff = 0.93,
+  similarityThreshold = 73,
+  similarityMeasure = {name = "cosine", quantiles = False},
+  costCombine = CombineSum,
+  mixEmbedding = 55,
+  enableElmo = False,
+  annotatePOS = False,
+  annotateDebug = False}
+
 type alias Model = {
   connected : Bool,
   features : Features,
   query : String,
   querySettings : QuerySettings,
+  automaticQuerySettings : QuerySettings,
   search : SearchStatus,
   results : List Match }
 
@@ -166,9 +187,16 @@ init : (Model, Cmd Msg)
 init = ( {
   connected = True,  -- binding js ensures we're connected
   -- at first time of instantation of elm app.
-  features = {nicdm = True, apsynp = True, maximum = False, quantiles = False, idf = True},
+  features = {
+    automatic = True,
+    nicdm = True,
+    apsynp = True,
+    maximum = False,
+    quantiles = False,
+    idf = True},
   query = "",
   querySettings = defaultQuerySettings,
+  automaticQuerySettings = defaultAutomaticQuerySettings,
   search = NotSearching,
   results = [] }, Cmd.none )
 
@@ -179,7 +207,11 @@ startSearch : Model -> (Model, Cmd Msg)
 startSearch model =
   (
     { model | search = SearchRequested, results = [] }
-    , Server.startSearch model.query model.querySettings
+    , Server.startSearch model.query (
+        if model.features.automatic then
+            model.automaticQuerySettings
+        else
+            model.querySettings)
   )
 
 sortResults : List Match -> List Match
@@ -665,7 +697,7 @@ searchUI model
                 _ -> []
             )
 
-          , section NotSpaced []
+          , if model.features.automatic then div [] [] else section NotSpaced []
           [
             tileAncestor Auto []
             [

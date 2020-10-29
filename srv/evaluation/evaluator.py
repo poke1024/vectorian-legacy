@@ -181,12 +181,11 @@ class BlockingEvaluator(pykka.ThreadingActor):
 
 		measured = self._measures.evaluate(
 			search_result, truth)
-		self._results.append(measured)
+		self._results.append((
+			self._topics[topic_index], search_result, float(measured)))
 
 		if not self._queue:
-			self._future.set_result(
-				np.average(self._results, axis=0))
-
+			self._future.set_result(self._results)
 			self._results = []
 		else:
 			self.next_search()

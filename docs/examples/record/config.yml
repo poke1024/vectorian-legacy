@@ -1,0 +1,15 @@
+---
+strategy: record
+parameters:
+  ignore_determiners:  true
+  mix_fasttext_wn2vec: 0.41
+  similarity_measure: nicdm
+  idf_weight: 0.96
+  similarity_falloff: 0.39
+  pos_weighting: 0.09
+  pos_mismatch_penalty: 0.43
+  similarity_threshold: 0.83
+  mismatch_length_penalty: 1
+  submatch_weight: 0.14
+  bidirectional: false
+s

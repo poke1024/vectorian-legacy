@@ -1,0 +1,3 @@
+---
+- type: normalized_discounted_cumulative_gain
+  n: 50

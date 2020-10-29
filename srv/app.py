@@ -197,6 +197,27 @@ class Session(Abacus):
 
 		query_text = data['query']
 
+		script_dir = Path(os.path.dirname(os.path.realpath(__file__)))
+		override_path = script_dir.parent / "query_settings.yml"
+		if override_path.exists():
+			percentages = set([
+				'mix_embedding',
+				'pos_mismatch',
+				'pos_weighting',
+				'idf_weight',
+				'similarity_threshold'
+			])
+			with open(override_path, "r") as f:
+				override_data = yaml.safe_load(f)
+			for k, v in override_data.items():
+				if k not in data:
+					raise RuntimeError("unknown override key %s" % k)
+				if k in percentages:
+					v = float(v) * 100
+				if k == "similarity_threshold":
+					v -= 1
+				data[k] = v
+
 		pos_mismatch = float(data['pos_mismatch']) / 100
 		pos_weighting = float(data['pos_weighting']) / 100
 
@@ -320,6 +341,10 @@ class Topic(evaluation.Topic):
 		super().__init__(truth)
 		self._app = app
 		self._query_text = query
+
+	@property
+	def query(self):
+		return self._query_text
 
 	def search(self, parameters, reply):
 		options = dict(parameters.items())
@@ -480,7 +505,9 @@ class App:
 					traceback.print_exc()
 
 			self._evaluator = evaluation.evaluate(
-				config, measures, topics, basepath, on_evaluation_finished)
+				config, measures, topics, basepath,
+				data.corpus.signature_lookup(self.documents),
+				on_evaluation_finished)
 
 	def _load_topics(self, filename):
 		import yaml

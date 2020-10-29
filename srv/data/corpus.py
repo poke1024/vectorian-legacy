@@ -610,6 +610,29 @@ def build_signatures_by_quote(doc, text):
 	return results
 
 
+def signature_lookup(docs):
+	all_signatures = _signatures(docs, None)
+
+	doc_id_to_sig = dict()
+	for doc_sig, (doc, sent_dict) in all_signatures.items():
+		sent_id_to_sig = dict()
+		for sent_sig, sent_id in sent_dict.items():
+			sent_id_to_sig[sent_id] = (doc_sig, sent_sig)
+		doc_id_to_sig[doc.id] = sent_id_to_sig
+
+	def lookup(ref):
+		doc_id, sent_id = ref
+		doc = doc_id_to_sig.get(doc_id)
+		if doc is None:
+			raise RuntimeError(f"no doc {doc_id}")
+		r = doc.get(sent_id)
+		if r is None:
+			raise RuntimeError(f"no sentence {sent_id} in doc {doc_id}")
+		return r
+
+	return lookup
+
+
 def signature_resolver(docs, parser=None):
 	all_signatures = _signatures(docs, parser)
 

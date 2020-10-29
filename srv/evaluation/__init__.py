@@ -3,12 +3,14 @@ import collections
 import numbers
 import pykka.messages
 import yaml
+import json
 import time
 import logging
 import threading
 
 from pathlib import Path
 from. utils import *
+from scipy.stats import hmean
 
 from .evaluator import Evaluator, BlockingEvaluator
 from abacus import print_debug_stats
@@ -34,19 +36,51 @@ class Computer:
 
 		print("waiting for result.", flush=True, end="")
 		t0 = time.time()
-		scores = result.result()
+		data = result.result()
 		print(" done (%.1fs)." % (time.time() - t0), flush=True)
 
 		print_debug_stats()
 
-		score = np.average(scores)
+		return data
 
-		return score
+
+class ScoreComputer(Computer):
+	def __init__(self, measures, topics):
+		super().__init__(measures, topics)
+
+	def __call__(self, args):
+		data = super().__call__(args)
+
+		# print("retrieved the following scores:", sorted(
+		#	self._results, key=lambda x: x[0]))
+
+		scores = [x[-1] for x in data]
+
+		# we are not interested in optimizing perfect matches
+		# compute a trimmed mean
+		# q = np.quantile(scores, 0.5)
+		# scores = [x for x in scores if x <= q]
+
+		# arithmetic mean
+		# overall = np.average(scores, axis=0)
+
+		# compute the trimean
+		# q1 = np.quantile(scores, 0.25)
+		# q2 = np.quantile(scores, 0.5)
+		# q3 = np.quantile(scores, 0.75)
+		# overall = (q1 + 2 * q2 + q3) / 4
+
+		# harmonic mean
+		overall = hmean(np.array(scores) + 0.01)
+
+		#score = np.average(scores)
+
+		return overall
 
 
 class Objective:
 	def __init__(self, measures, topics, params, outfile):
-		self._computer = Computer(measures, topics)
+		self._computer = ScoreComputer(measures, topics)
 		self._params = params
 		self._outfile = outfile
 
@@ -128,7 +162,7 @@ def gen_ablations(param):
 
 
 def _ablation_study(config, measures, topics, basepath):
-	computer = Computer(measures, topics)
+	computer = ScoreComputer(measures, topics)
 
 	with open(basepath / "ablation.csv", "w") as f:
 
@@ -137,7 +171,11 @@ def _ablation_study(config, measures, topics, basepath):
 		f.write(f"baseline;{baseline_score}\n")
 		f.flush()
 
-		for param in config["parameters"]:  # ablation on param
+		params = config.get("parameters")
+		if params is None:
+			params = []
+
+		for param in params:  # ablation on param
 			for name, value in gen_ablations(param):
 				if baseline_args[name] == value:
 					f.write(f"ablation;{name};{value};{baseline_score}\n")
@@ -151,7 +189,29 @@ def _ablation_study(config, measures, topics, basepath):
 	print("ablation done.")
 
 
-def evaluate(config, measures, topics, basepath, on_done=None):
+def record_results(config, measures, topics, basepath, lookup_signature):
+	computer = Computer(measures, topics)
+
+	args = config["parameters"]
+	data = computer(args)
+
+	saved = []
+	for topic, results, score in data:
+		saved.append(dict(
+			topic=dict(
+				query=topic.query,
+				truth=[lookup_signature(x) for x in topic.truth]),
+			results=[lookup_signature(x) for x in results[:50]],
+			score=score
+		))
+
+	with open(basepath / "results.json", "w") as f:
+		f.write(json.dumps(saved))
+
+	print("recording done.")
+
+
+def evaluate(config, measures, topics, basepath, lookup_signature, on_done=None):
 	# set this to logging.DEBUG to debug strange hangs/aborts.
 	logging.getLogger('pykka').setLevel(logging.ERROR)
 
@@ -165,6 +225,13 @@ def evaluate(config, measures, topics, basepath, on_done=None):
 	elif strategy == "ablation":
 		t = threading.Thread(
 			target=_ablation_study, args=(config, measures, topics, basepath))
+		t.start()
+		return None
+
+	elif strategy == "record":
+		t = threading.Thread(
+			target=record_results, args=(
+				config, measures, topics, basepath, lookup_signature))
 		t.start()
 		return None
 
