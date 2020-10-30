@@ -1,5 +1,7 @@
 ![Vectorian Screenshot](/docs/screenshot.png)
 
+![Vectorian Match Screenshot](/docs/screenshot_match.png)
+
 Vectorian is a high-performance search engine for intertextual references powered by
 <a href="https://fasttext.cc/">fastText</a>, <a href="https://spacy.io/">spaCy</a> and
 <a href="https://github.com/poke1024/simileco">simileco</a>.
