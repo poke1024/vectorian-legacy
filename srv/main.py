@@ -56,6 +56,11 @@ class MainHandler(BaseHandler):
 
 
 class SocketHandler(websocket.WebSocketHandler):
+	def __init__(self, *args, **kwargs):
+		self._send_queue = None
+		self._buffered = []
+		super().__init__(*args, **kwargs)
+
 	def initialize(self, app):
 		self._app = app
 
@@ -66,11 +71,18 @@ class SocketHandler(websocket.WebSocketHandler):
 		self._send_queue = janus.Queue()
 		self._send_task = None
 
+		for message in self._buffered:
+			self._send_queue.sync_q.put(message)
+		self._buffered = []
+
 	def check_origin(self, origin):
 		return True
 
 	def _ws_send(self, message):
-		self._send_queue.sync_q.put(message)
+		if self._send_queue is None:
+			self._buffered.append(message)
+		else:
+			self._send_queue.sync_q.put(message)
 
 	async def _send_task_handler(self):
 		while True:

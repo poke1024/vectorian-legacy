@@ -27,7 +27,7 @@
                 node: document.getElementById("elm-node")
             });
 
-            app.ports.toClient.send("connected");
+            //app.ports.toClient.send("connected");
 
             socket.onmessage = function(event) {
                 // console.log("received", event.data);

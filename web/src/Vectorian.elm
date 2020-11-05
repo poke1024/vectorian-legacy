@@ -23,7 +23,7 @@ import BulmaExtensions exposing (
   mismatchCutoffSlider, falloffSlider, optionalCheckbox, intSlider )
 
 
-import Json.Decode as Decode exposing (int, list, string, float, bool, Decoder)
+import Json.Decode as Decode exposing (int, list, string, float, bool, field, Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
 import Json.Decode as Json
 
@@ -100,7 +100,9 @@ matchDecoder =
     |> optional "omitted" (list string) []
 
 type alias ServerResultsMessage = {
-  command: String, results : List Match, progress : Float }
+  command : String,
+  results : List Match,
+  progress : Float }
 
 serverResultsMessageDecoder : Decoder ServerResultsMessage
 serverResultsMessageDecoder =
@@ -116,10 +118,10 @@ type alias Features = {
   apsynp : Bool,
   maximum : Bool,
   quantiles : Bool,
-  idf : Bool}
+  idf : Bool }
 
-type alias ServerConnectedMessage = {
-  status: String, features: Features }
+type alias ServerConnectionMessage = {
+  command : String, features : Features }
 
 featuresDecoder : Decoder Features
 featuresDecoder =
@@ -131,10 +133,10 @@ featuresDecoder =
     |> required "quantiles" bool
     |> required "idf" bool
 
-serverConnectedMessageDecoder : Decoder ServerConnectedMessage
-serverConnectedMessageDecoder =
-  Decode.succeed ServerConnectedMessage
-    |> required "status" string
+serverConnectionMessageDecoder : Decoder ServerConnectionMessage
+serverConnectionMessageDecoder =
+  Decode.succeed ServerConnectionMessage
+    |> required "command" string
     |> required "features" featuresDecoder
 
 
@@ -288,8 +290,8 @@ update msg model =
       UpdateQuerySettings q ->
         ({model | querySettings = updateQuerySettings model.querySettings q }, Cmd.none)
 
-      ReceiveDataFromServer "connected" ->
-        ({ model | connected = True }, Cmd.none)
+      --ReceiveDataFromServer "connected" ->
+      --  ({ model | connected = True }, Cmd.none)
       ReceiveDataFromServer "disconnected" ->
         ({ model | connected = False }, Cmd.none)
       ReceiveDataFromServer "search-started" ->
@@ -300,19 +302,30 @@ update msg model =
         ({ model | search = NotSearching }, Cmd.none)
       ReceiveDataFromServer message ->
         let
-          decoded = Decode.decodeString serverResultsMessageDecoder message
-          r = model.results
+          command = Decode.decodeString (Decode.field "command" string) message
         in
-          case decoded of
-            Ok serverMessage ->
-              if serverMessage.command == "add-results" then
-                ({ model |
-                  results = sortResults(r ++ serverMessage.results)
-                  , search = searching serverMessage.progress
-                }, Cmd.none)
-              else
-                (model, Cmd.none)
-            Err err -> (model, Cmd.none)
+          case command of
+            Ok "connect" ->
+              let
+                decoded = Decode.decodeString serverConnectionMessageDecoder message
+              in
+                case decoded of
+                  Ok serverMessage ->
+                    ({ model | features = serverMessage.features, connected = True }, Cmd.none)
+                  Err err -> (model, Cmd.none)
+            Ok "add-results" ->
+              let
+                decoded = Decode.decodeString serverResultsMessageDecoder message
+                r = model.results
+              in
+                case decoded of
+                  Ok serverMessage ->
+                    ({ model |
+                      results = sortResults(r ++ serverMessage.results)
+                      , search = searching serverMessage.progress
+                    }, Cmd.none)
+                  Err err -> (model, Cmd.none)
+            _ -> (model, Cmd.none)
 
 onKeyDown : (Int -> msg) -> Attribute msg
 onKeyDown tagger =

@@ -5224,10 +5224,62 @@ var $author$project$Server$abortSearch = $author$project$Server$toServer(
 					$elm$json$Json$Encode$string('abort-search'))
 				]))));
 var $elm$json$Json$Decode$decodeString = _Json_runOnString;
+var $elm$json$Json$Decode$field = _Json_decodeField;
 var $author$project$Vectorian$searching = function (p) {
 	return (p > 0) ? $author$project$Vectorian$Searching(
 		$elm$core$Maybe$Just(p)) : $author$project$Vectorian$Searching($elm$core$Maybe$Nothing);
 };
+var $author$project$Vectorian$ServerConnectionMessage = F2(
+	function (command, features) {
+		return {command: command, features: features};
+	});
+var $author$project$Vectorian$Features = F6(
+	function (automatic, nicdm, apsynp, maximum, quantiles, idf) {
+		return {apsynp: apsynp, automatic: automatic, idf: idf, maximum: maximum, nicdm: nicdm, quantiles: quantiles};
+	});
+var $elm$json$Json$Decode$bool = _Json_decodeBool;
+var $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$custom = $elm$json$Json$Decode$map2($elm$core$Basics$apR);
+var $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required = F3(
+	function (key, valDecoder, decoder) {
+		return A2(
+			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$custom,
+			A2($elm$json$Json$Decode$field, key, valDecoder),
+			decoder);
+	});
+var $author$project$Vectorian$featuresDecoder = A3(
+	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
+	'idf',
+	$elm$json$Json$Decode$bool,
+	A3(
+		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
+		'quantiles',
+		$elm$json$Json$Decode$bool,
+		A3(
+			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
+			'maximum',
+			$elm$json$Json$Decode$bool,
+			A3(
+				$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
+				'apsynp',
+				$elm$json$Json$Decode$bool,
+				A3(
+					$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
+					'nicdm',
+					$elm$json$Json$Decode$bool,
+					A3(
+						$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
+						'automatic',
+						$elm$json$Json$Decode$bool,
+						$elm$json$Json$Decode$succeed($author$project$Vectorian$Features)))))));
+var $author$project$Vectorian$serverConnectionMessageDecoder = A3(
+	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
+	'features',
+	$author$project$Vectorian$featuresDecoder,
+	A3(
+		$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
+		'command',
+		$elm$json$Json$Decode$string,
+		$elm$json$Json$Decode$succeed($author$project$Vectorian$ServerConnectionMessage)));
 var $author$project$Vectorian$ServerResultsMessage = F3(
 	function (command, results, progress) {
 		return {command: command, progress: progress, results: results};
@@ -5243,15 +5295,6 @@ var $author$project$Vectorian$MatchDebugInfo = F2(
 		return {document: document, sentence: sentence};
 	});
 var $elm$json$Json$Decode$int = _Json_decodeInt;
-var $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$custom = $elm$json$Json$Decode$map2($elm$core$Basics$apR);
-var $elm$json$Json$Decode$field = _Json_decodeField;
-var $NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required = F3(
-	function (key, valDecoder, decoder) {
-		return A2(
-			$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$custom,
-			A2($elm$json$Json$Decode$field, key, valDecoder),
-			decoder);
-	});
 var $author$project$Vectorian$matchDebugInfoDecoder = A3(
 	$NoRedInk$elm_json_decode_pipeline$Json$Decode$Pipeline$required,
 	'sentence',
@@ -5659,12 +5702,6 @@ var $author$project$Vectorian$update = F2(
 					$elm$core$Platform$Cmd$none);
 			default:
 				switch (msg.a) {
-					case 'connected':
-						return _Utils_Tuple2(
-							_Utils_update(
-								model,
-								{connected: true}),
-							$elm$core$Platform$Cmd$none);
 					case 'disconnected':
 						return _Utils_Tuple2(
 							_Utils_update(
@@ -5693,23 +5730,53 @@ var $author$project$Vectorian$update = F2(
 							$elm$core$Platform$Cmd$none);
 					default:
 						var message = msg.a;
-						var r = model.results;
-						var decoded = A2($elm$json$Json$Decode$decodeString, $author$project$Vectorian$serverResultsMessageDecoder, message);
-						if (decoded.$ === 'Ok') {
-							var serverMessage = decoded.a;
-							return (serverMessage.command === 'add-results') ? _Utils_Tuple2(
-								_Utils_update(
-									model,
-									{
-										results: $author$project$Vectorian$sortResults(
-											_Utils_ap(r, serverMessage.results)),
-										search: $author$project$Vectorian$searching(serverMessage.progress)
-									}),
-								$elm$core$Platform$Cmd$none) : _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
-						} else {
-							var err = decoded.a;
-							return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+						var command = A2(
+							$elm$json$Json$Decode$decodeString,
+							A2($elm$json$Json$Decode$field, 'command', $elm$json$Json$Decode$string),
+							message);
+						_v1$2:
+						while (true) {
+							if (command.$ === 'Ok') {
+								switch (command.a) {
+									case 'connect':
+										var decoded = A2($elm$json$Json$Decode$decodeString, $author$project$Vectorian$serverConnectionMessageDecoder, message);
+										if (decoded.$ === 'Ok') {
+											var serverMessage = decoded.a;
+											return _Utils_Tuple2(
+												_Utils_update(
+													model,
+													{connected: true, features: serverMessage.features}),
+												$elm$core$Platform$Cmd$none);
+										} else {
+											var err = decoded.a;
+											return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+										}
+									case 'add-results':
+										var r = model.results;
+										var decoded = A2($elm$json$Json$Decode$decodeString, $author$project$Vectorian$serverResultsMessageDecoder, message);
+										if (decoded.$ === 'Ok') {
+											var serverMessage = decoded.a;
+											return _Utils_Tuple2(
+												_Utils_update(
+													model,
+													{
+														results: $author$project$Vectorian$sortResults(
+															_Utils_ap(r, serverMessage.results)),
+														search: $author$project$Vectorian$searching(serverMessage.progress)
+													}),
+												$elm$core$Platform$Cmd$none);
+										} else {
+											var err = decoded.a;
+											return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+										}
+									default:
+										break _v1$2;
+								}
+							} else {
+								break _v1$2;
+							}
 						}
+						return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 				}
 		}
 	});
@@ -10853,7 +10920,6 @@ var $elm$json$Json$Decode$at = F2(
 	function (fields, decoder) {
 		return A3($elm$core$List$foldr, $elm$json$Json$Decode$field, decoder, fields);
 	});
-var $elm$json$Json$Decode$bool = _Json_decodeBool;
 var $elm$html$Html$Events$targetChecked = A2(
 	$elm$json$Json$Decode$at,
 	_List_fromArray(

@@ -166,6 +166,18 @@ class Session(Abacus):
 
 		self._config = Config()
 
+		connection_command = dict(
+			command='connect',
+			features=dict(
+				automatic=False,
+				nicdm=True,
+				apsynp=True,
+				maximum=True,
+				quantiles=True,
+				idf=True))
+
+		self.ws_send(json.dumps(connection_command))
+
 	def _flush_set(self):
 		if self._set is not None:
 			data = dict(
